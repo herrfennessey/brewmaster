@@ -2,7 +2,7 @@
 # Build from repo root: docker build -t brewmaster .
 
 # Stage 1: Build React PWA
-FROM node:22-alpine AS pwa-builder
+FROM node:25-alpine AS pwa-builder
 
 WORKDIR /pwa
 
