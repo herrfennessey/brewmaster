@@ -6,12 +6,6 @@
 
 export PORT=8080
 
-# AI provider selection (anthropic or openai)
-export AI_PROVIDER=anthropic
-export AI_MODEL=claude-sonnet-4-6
-
-# API keys — set whichever provider you are using
-export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-proj-...
 
 # GCP project (used when running gcloud commands locally)

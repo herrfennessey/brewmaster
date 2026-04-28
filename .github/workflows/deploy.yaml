@@ -53,6 +53,6 @@ jobs:
             --memory 256Mi \
             --cpu 0.25 \
             --min-instances 0 \
-            --set-env-vars "GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},AI_PROVIDER=anthropic,AI_MODEL=claude-sonnet-4-6" \
-            --set-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,OPENAI_API_KEY=openai-api-key:latest" \
+            --set-env-vars "GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}" \
+            --set-secrets "OPENAI_API_KEY=openai-api-key:latest" \
             --project ${{ vars.GCP_PROJECT_ID }}

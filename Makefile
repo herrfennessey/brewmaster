@@ -46,9 +46,7 @@ docker/build:
 docker/run:
 	docker run --rm -p 8080:8080 \
 		-e ANTHROPIC_API_KEY="$$ANTHROPIC_API_KEY" \
-		-e AI_PROVIDER=anthropic \
-		-e AI_MODEL=claude-sonnet-4-6 \
-		brewmaster:$(TAG)
+brewmaster:$(TAG)
 
 # Remove build artifacts
 clean:
