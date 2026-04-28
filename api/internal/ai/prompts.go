@@ -1,63 +1,64 @@
 package ai
 
-// ParseBeanPrompt instructs the AI to extract structured bean data from raw text.
+// ParseBeanPrompt is the system prompt for the parse-bean endpoint.
 const ParseBeanPrompt = `You are a specialty coffee expert. Extract structured data from the provided coffee bean text.
 
-Return ONLY a valid JSON object — no explanation, no markdown, no code blocks.
+Rules:
+- Use null for any field not mentioned or clearly inferrable from the text
+- flavor_notes should be an empty array if none are mentioned
+- altitude_confidence: "exact" if a single number given, "range" if a range, "estimated" if inferred from region
+- roast_date must be ISO8601 format (YYYY-MM-DD) or null
+- Do not invent data not present in the text
+- confidence.level reflects how complete and unambiguous the source text was`
 
-Schema:
-{
-  "parsed": {
-    "producer": string | null,
-    "origin_country": string | null,
-    "origin_region": string | null,
-    "altitude_m": number | null,
-    "altitude_confidence": "exact" | "range" | "estimated" | null,
-    "varietal": string | null,
-    "process": "natural" | "washed" | "honey" | "wet-hulled" | "anaerobic" | "other" | null,
-    "roast_level": "light" | "medium" | "dark" | null,
-    "roast_date": "ISO8601 date string" | null,
-    "roaster_name": string | null,
-    "flavor_notes": [string],
-    "lot_year": number | null
-  },
-  "confidence": {
-    "level": "high" | "medium" | "low",
-    "notes": "brief explanation of confidence level and any ambiguities"
-  }
+// ParseBeanTool is the tool definition used to force structured output from the parse-bean call.
+var ParseBeanTool = Tool{
+	Name:        "extract_bean_profile",
+	Description: "Extract structured coffee bean data from the provided text.",
+	Schema: map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"parsed", "confidence"},
+		"properties": map[string]any{
+			"parsed": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required": []string{
+					"producer", "origin_country", "origin_region", "altitude_m",
+					"altitude_confidence", "varietal", "process", "roast_level",
+					"roast_date", "roaster_name", "flavor_notes", "lot_year",
+				},
+				"properties": map[string]any{
+					"producer":            map[string]any{"type": []string{"string", "null"}},
+					"origin_country":      map[string]any{"type": []string{"string", "null"}},
+					"origin_region":       map[string]any{"type": []string{"string", "null"}},
+					"altitude_m":          map[string]any{"type": []string{"number", "null"}},
+					"altitude_confidence": map[string]any{"type": []string{"string", "null"}, "enum": []any{"exact", "range", "estimated", nil}},
+					"varietal":            map[string]any{"type": []string{"string", "null"}},
+					"process":             map[string]any{"type": []string{"string", "null"}, "enum": []any{"natural", "washed", "honey", "wet-hulled", "anaerobic", "other", nil}},
+					"roast_level":         map[string]any{"type": []string{"string", "null"}, "enum": []any{"light", "medium", "dark", nil}},
+					"roast_date":          map[string]any{"type": []string{"string", "null"}},
+					"roaster_name":        map[string]any{"type": []string{"string", "null"}},
+					"flavor_notes":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"lot_year":            map[string]any{"type": []string{"integer", "null"}},
+				},
+			},
+			"confidence": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required":             []string{"level", "notes"},
+				"properties": map[string]any{
+					"level": map[string]any{"type": "string", "enum": []string{"high", "medium", "low"}},
+					"notes": map[string]any{"type": "string"},
+				},
+			},
+		},
+	},
 }
 
-Rules:
-- Use null for any field not mentioned or inferrable from the text
-- flavor_notes should be an empty array [] if none mentioned
-- altitude_confidence: "exact" if a single number given, "range" if a range given, "estimated" if inferred
-- roast_date must be ISO8601 format (YYYY-MM-DD) or null
-- Do not invent data not present in the text`
-
-// BrewParamPrompt instructs the AI to generate espresso parameters from a bean profile.
+// BrewParamPrompt is the system prompt for the generate-parameters endpoint.
 const BrewParamPrompt = `You are a specialty coffee expert with deep knowledge of SCA espresso standards.
 Generate espresso brew parameters for the provided bean profile.
-
-Return ONLY a valid JSON object — no explanation, no markdown, no code blocks.
-
-Schema:
-{
-  "parameters": {
-    "dose_g":        { "value": number, "range": [min, max] },
-    "yield_g":       { "value": number, "range": [min, max] },
-    "ratio":         "1:X.X",
-    "temp_c":        { "value": number, "range": [min, max] },
-    "time_s":        { "value": number, "range": [min, max] },
-    "preinfusion_s": { "value": number, "range": [min, max] }
-  },
-  "confidence": {
-    "level": "high" | "medium" | "low",
-    "reason": "brief explanation"
-  },
-  "reasoning": "plain English explanation of the parameter choices",
-  "flags": ["array of notable warnings or suggestions"],
-  "iteration": 1
-}
 
 Espresso standards and logic to apply:
 - Target EY 18–22%, TDS 8–12%
@@ -81,3 +82,57 @@ Espresso standards and logic to apply:
 - Widen confidence ranges proportionally to missing fields
 - Add a flag for any unusual varietals (Gesha, Eugenioides, Robusta, etc.)
 - Preinfusion: 4–8s standard, lean toward lower for darker roasts`
+
+// BrewParamTool is the tool definition used to force structured output from the generate-parameters call.
+var BrewParamTool = Tool{
+	Name:        "generate_brew_parameters",
+	Description: "Generate espresso brew parameters for the provided bean profile.",
+	Schema: map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"parameters", "confidence", "reasoning", "flags", "iteration"},
+		"$defs": map[string]any{
+			"param_value": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required":             []string{"value", "range"},
+				"properties": map[string]any{
+					"value": map[string]any{"type": "number"},
+					"range": map[string]any{
+						"type":     "array",
+						"items":    map[string]any{"type": "number"},
+						"minItems": 2,
+						"maxItems": 2,
+					},
+				},
+			},
+		},
+		"properties": map[string]any{
+			"parameters": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required":             []string{"dose_g", "yield_g", "ratio", "temp_c", "time_s", "preinfusion_s"},
+				"properties": map[string]any{
+					"dose_g":        map[string]any{"$ref": "#/$defs/param_value"},
+					"yield_g":       map[string]any{"$ref": "#/$defs/param_value"},
+					"ratio":         map[string]any{"type": "string"},
+					"temp_c":        map[string]any{"$ref": "#/$defs/param_value"},
+					"time_s":        map[string]any{"$ref": "#/$defs/param_value"},
+					"preinfusion_s": map[string]any{"$ref": "#/$defs/param_value"},
+				},
+			},
+			"confidence": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"required":             []string{"level", "reason"},
+				"properties": map[string]any{
+					"level":  map[string]any{"type": "string", "enum": []string{"high", "medium", "low"}},
+					"reason": map[string]any{"type": "string"},
+				},
+			},
+			"reasoning": map[string]any{"type": "string"},
+			"flags":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"iteration": map[string]any{"type": "integer"},
+		},
+	},
+}

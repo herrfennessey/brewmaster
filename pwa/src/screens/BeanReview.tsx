@@ -37,7 +37,10 @@ export default function BeanReview() {
     setParsed(prev => {
       if (!prev) return prev
       if (value === '') return { ...prev, [key]: null }
-      if (numericFields.has(key)) return { ...prev, [key]: Number(value) }
+      if (numericFields.has(key)) {
+        const n = Number(value)
+        return { ...prev, [key]: Number.isFinite(n) ? n : null }
+      }
       return { ...prev, [key]: value }
     })
   }
@@ -68,8 +71,9 @@ export default function BeanReview() {
       <div style={s.grid}>
         {fields.map(({ key, label }) => (
           <div key={key} style={s.fieldBlock}>
-            <label style={s.label}>{label}</label>
+            <label htmlFor={key} style={s.label}>{label}</label>
             <input
+              id={key}
               style={s.input}
               value={getFieldValue(parsed, key)}
               onChange={e => updateField(key, e.target.value)}
@@ -78,8 +82,9 @@ export default function BeanReview() {
           </div>
         ))}
         <div style={s.fieldBlock}>
-          <label style={s.label}>Flavor notes</label>
+          <label htmlFor="flavor_notes" style={s.label}>Flavor notes</label>
           <input
+            id="flavor_notes"
             style={s.input}
             value={parsed.flavor_notes?.join(', ') ?? ''}
             onChange={e => setParsed(p => p ? { ...p, flavor_notes: e.target.value ? e.target.value.split(',').map(t => t.trim()) : [] } : p)}

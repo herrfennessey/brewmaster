@@ -49,10 +49,11 @@ func (h *ParseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	raw, err := h.provider.Complete(r.Context(), ai.CompletionRequest{
+	raw, err := h.provider.Complete(r.Context(), &ai.CompletionRequest{
 		SystemPrompt: ai.ParseBeanPrompt,
 		UserMessage:  req.Content,
 		MaxTokens:    1024,
+		Tool:         ai.ParseBeanTool,
 	})
 	if err != nil {
 		slog.Error("AI completion failed", "error", err)
@@ -61,8 +62,8 @@ func (h *ParseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var aiResp parsedAIResponse
-	if err := json.Unmarshal([]byte(stripCodeFences(raw)), &aiResp); err != nil {
-		slog.Error("failed to parse AI response", "error", err, "raw", raw)
+	if err := json.Unmarshal([]byte(raw), &aiResp); err != nil {
+		slog.Error("failed to parse AI tool response", "error", err, "raw", raw)
 		writeError(w, http.StatusInternalServerError, "AI returned an unexpected response format")
 		return
 	}

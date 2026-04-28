@@ -69,9 +69,9 @@ func spaHandler(root http.FileSystem) http.Handler {
 	})
 }
 
-// corsMiddleware adds permissive CORS headers for local development.
-// In production this is safe because Cloud Run sits behind Google's infrastructure
-// and auth will be enforced at the application layer.
+// corsMiddleware adds permissive CORS headers.
+// This is a personal tool with no auth in Phase 1; the open wildcard is accepted risk.
+// TODO: restrict Allow-Origin to known domains before sharing this with others.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")

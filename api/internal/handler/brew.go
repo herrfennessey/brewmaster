@@ -50,10 +50,11 @@ func (h *BrewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	userMsg := buildBrewUserMessage(&req)
 
-	raw, err := h.provider.Complete(r.Context(), ai.CompletionRequest{
+	raw, err := h.provider.Complete(r.Context(), &ai.CompletionRequest{
 		SystemPrompt: ai.BrewParamPrompt,
 		UserMessage:  userMsg,
 		MaxTokens:    1024,
+		Tool:         ai.BrewParamTool,
 	})
 	if err != nil {
 		slog.Error("AI completion failed", "error", err)
@@ -62,8 +63,8 @@ func (h *BrewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var aiResp brewAIResponse
-	if err := json.Unmarshal([]byte(stripCodeFences(raw)), &aiResp); err != nil {
-		slog.Error("failed to parse AI response", "error", err, "raw", raw)
+	if err := json.Unmarshal([]byte(raw), &aiResp); err != nil {
+		slog.Error("failed to parse AI tool response", "error", err, "raw", raw)
 		writeError(w, http.StatusInternalServerError, "AI returned an unexpected response format")
 		return
 	}
@@ -84,7 +85,7 @@ func (h *BrewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func buildBrewUserMessage(req *generateParamsRequest) string {
-	// BeanProfile contains no unencodeable types; marshal cannot fail.
+	// BeanProfile contains no unencodable types; marshal cannot fail.
 	beanJSON, err := json.Marshal(req.BeanProfile)
 	if err != nil {
 		panic("brewmaster: marshal BeanProfile: " + err.Error())

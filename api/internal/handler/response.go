@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strings"
 )
 
 type errorResponse struct {
@@ -21,20 +20,4 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, errorResponse{Error: msg})
-}
-
-// stripCodeFences removes markdown JSON code fences that some models add despite being told not to.
-func stripCodeFences(s string) string {
-	s = strings.TrimSpace(s)
-	if strings.HasPrefix(s, "```") {
-		end := strings.LastIndex(s, "```")
-		if end > 3 {
-			s = s[3:end]
-		}
-		// remove optional language identifier on the opening fence line
-		if nl := strings.Index(s, "\n"); nl != -1 {
-			s = s[nl+1:]
-		}
-	}
-	return strings.TrimSpace(s)
 }

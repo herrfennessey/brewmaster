@@ -13,8 +13,10 @@ export interface ParsedBean {
   lot_year: number | null
 }
 
+export type ConfidenceLevel = 'high' | 'medium' | 'low'
+
 export interface BeanConfidence {
-  level: 'high' | 'medium' | 'low'
+  level: ConfidenceLevel
   notes: string
 }
 
@@ -41,7 +43,7 @@ export interface BrewParams {
 }
 
 export interface BrewConfidence {
-  level: 'high' | 'medium' | 'low'
+  level: ConfidenceLevel
   reason: string
 }
 
