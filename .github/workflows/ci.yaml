@@ -20,9 +20,6 @@ permissions:
 jobs:
   test-api:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./api
 
     steps:
       - uses: actions/checkout@v4
@@ -33,22 +30,19 @@ jobs:
           go-version-file: ./api/go.mod
 
       - name: Download dependencies
-        run: go mod download
+        run: cd api && go mod download
 
       - name: Build
-        run: go build -v ./...
+        run: make build/api
 
       - name: Test
-        run: go test -v -race ./...
+        run: make test
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
   lint-api:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./api
 
     steps:
       - uses: actions/checkout@v4
@@ -62,13 +56,10 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           working-directory: ./api
-          version: v2.6.2
+          version: latest
 
   build-pwa:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./pwa
 
     steps:
       - uses: actions/checkout@v4
@@ -81,13 +72,13 @@ jobs:
           cache-dependency-path: pwa/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: make install/pwa
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: make typecheck
 
       - name: Build
-        run: npm run build
+        run: make build/pwa
 
   security-scan:
     runs-on: ubuntu-latest
@@ -96,12 +87,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build Docker image
-        run: docker build -t brewmaster:${{ github.sha }} .
+        run: make docker/build TAG=${{ github.sha }}
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'brewmaster:${{ github.sha }}'
+
           format: 'table'
           output: 'trivy-results.txt'
           ignore-unfixed: true
