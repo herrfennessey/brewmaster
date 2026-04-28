@@ -1,10 +1,16 @@
-function App() {
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import Home from './screens/Home'
+import BeanReview from './screens/BeanReview'
+import BrewParameters from './screens/BrewParameters'
+
+export default function App() {
   return (
-    <div style={{ fontFamily: 'sans-serif', textAlign: 'center', marginTop: '4rem' }}>
-      <h1>Brewmaster</h1>
-      <p>Hello World!</p>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/review/:id" element={<BeanReview />} />
+        <Route path="/brew/:beanId" element={<BrewParameters />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
-
-export default App

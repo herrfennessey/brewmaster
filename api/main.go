@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/herrfennessey/brewmaster/api/internal/ai"
 	"github.com/herrfennessey/brewmaster/api/internal/router"
 )
 
@@ -30,7 +31,13 @@ func loadConfig() Config {
 func main() {
 	cfg := loadConfig()
 
-	r := router.New()
+	provider, err := ai.NewOpenAIProvider()
+	if err != nil {
+		slog.Error("Failed to initialize AI provider", "error", err)
+		os.Exit(1)
+	}
+
+	r := router.New(provider)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
