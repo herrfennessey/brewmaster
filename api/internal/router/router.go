@@ -6,15 +6,20 @@ import (
 	"os"
 	"strings"
 
+	"github.com/herrfennessey/brewmaster/api/internal/ai"
 	"github.com/herrfennessey/brewmaster/api/internal/handler"
 )
 
 // New creates and returns the HTTP router with all routes configured.
-func New() http.Handler {
+func New(provider ai.Provider) http.Handler {
 	mux := http.NewServeMux()
 
 	// Public health check
 	mux.HandleFunc("GET /health", handler.Health)
+
+	// AI endpoints
+	mux.Handle("POST /api/parse-bean", handler.NewParseHandler(provider))
+	mux.Handle("POST /api/generate-parameters", handler.NewBrewHandler(provider))
 
 	// Serve the React PWA from ./static if it has been built.
 	// Falls back to the health handler when running without a built frontend
@@ -33,36 +38,40 @@ func New() http.Handler {
 func spaHandler(root http.FileSystem) http.Handler {
 	fileServer := http.FileServer(root)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-
-		f, err := root.Open(path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				r.URL.Path = "/"
-				fileServer.ServeHTTP(w, r)
-				return
-			}
+		f, err := root.Open(r.URL.Path)
+		if os.IsNotExist(err) {
+			r.URL.Path = "/"
+			fileServer.ServeHTTP(w, r)
+			return
 		}
-		if f != nil {
-			defer f.Close() //nolint:errcheck
-			stat, statErr := f.Stat()
-			if statErr == nil && stat.IsDir() {
-				indexPath := strings.TrimSuffix(path, "/") + "/index.html"
-				if _, openErr := root.Open(indexPath); os.IsNotExist(openErr) {
-					r.URL.Path = "/"
-					fileServer.ServeHTTP(w, r)
-					return
-				}
-			}
+		if err != nil || f == nil {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		defer f.Close() //nolint:errcheck
+
+		stat, statErr := f.Stat()
+		if statErr != nil || !stat.IsDir() {
+			fileServer.ServeHTTP(w, r)
+			return
 		}
 
+		// Path is a directory — fall back to index.html if no directory index exists.
+		indexPath := strings.TrimSuffix(r.URL.Path, "/") + "/index.html"
+		indexFile, openErr := root.Open(indexPath)
+		if openErr == nil {
+			defer indexFile.Close() //nolint:errcheck
+		}
+		if os.IsNotExist(openErr) {
+			r.URL.Path = "/"
+		}
 		fileServer.ServeHTTP(w, r)
 	})
 }
 
-// corsMiddleware adds permissive CORS headers for local development.
-// In production this is safe because Cloud Run sits behind Google's infrastructure
-// and auth will be enforced at the application layer.
+// corsMiddleware adds permissive CORS headers.
+// This is a personal tool with no auth in Phase 1; the open wildcard is accepted risk.
+// TODO: restrict Allow-Origin to known domains before sharing this with others.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
