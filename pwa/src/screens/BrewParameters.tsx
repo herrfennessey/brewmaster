@@ -1,28 +1,29 @@
+import type { CSSProperties } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getBrewParamsForBean } from '../services/storage'
 import type { ParameterValue } from '../types'
 import ConfidenceBadge from '../components/ConfidenceBadge'
 
 const s = {
-  page: { maxWidth: 640, margin: '0 auto', padding: '2rem 1rem', fontFamily: 'system-ui, sans-serif' } satisfies React.CSSProperties,
-  back: { color: '#555', textDecoration: 'none', fontSize: '0.9rem' } satisfies React.CSSProperties,
-  heading: { margin: '1rem 0 0.25rem' } satisfies React.CSSProperties,
-  reason: { color: '#555', fontSize: '0.9rem', margin: '0.5rem 0 1rem' } satisfies React.CSSProperties,
+  page: { maxWidth: 640, margin: '0 auto', padding: '2rem 1rem', fontFamily: 'system-ui, sans-serif' } satisfies CSSProperties,
+  back: { color: '#555', textDecoration: 'none', fontSize: '0.9rem' } satisfies CSSProperties,
+  heading: { margin: '1rem 0 0.25rem' } satisfies CSSProperties,
+  reason: { color: '#555', fontSize: '0.9rem', margin: '0.5rem 0 1rem' } satisfies CSSProperties,
 
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', margin: '1.25rem 0' } satisfies React.CSSProperties,
-  section: { marginBottom: '1.25rem' } satisfies React.CSSProperties,
-  sectionTitle: { fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#555', margin: '0 0 0.5rem' } satisfies React.CSSProperties,
-  reasoning: { color: '#333', lineHeight: 1.6, margin: 0 } satisfies React.CSSProperties,
-  flagRow: { display: 'flex', flexWrap: 'wrap' as const, gap: '0.5rem' } satisfies React.CSSProperties,
-  flag: { background: '#fff3cd', color: '#7a5a00', border: '1px solid #f0d080', borderRadius: 6, padding: '0.3rem 0.75rem', fontSize: '0.85rem' } satisfies React.CSSProperties,
-  disabledBtn: { width: '100%', padding: '0.85rem', fontSize: '0.95rem', borderRadius: 8, border: '1.5px solid #ccc', background: '#f5f5f5', color: '#aaa', cursor: 'not-allowed', marginTop: '0.5rem' } satisfies React.CSSProperties,
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', margin: '1.25rem 0' } satisfies CSSProperties,
+  section: { marginBottom: '1.25rem' } satisfies CSSProperties,
+  sectionTitle: { fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#555', margin: '0 0 0.5rem' } satisfies CSSProperties,
+  reasoning: { color: '#333', lineHeight: 1.6, margin: 0 } satisfies CSSProperties,
+  flagRow: { display: 'flex', flexWrap: 'wrap' as const, gap: '0.5rem' } satisfies CSSProperties,
+  flag: { background: '#fff3cd', color: '#7a5a00', border: '1px solid #f0d080', borderRadius: 6, padding: '0.3rem 0.75rem', fontSize: '0.85rem' } satisfies CSSProperties,
+  disabledBtn: { width: '100%', padding: '0.85rem', fontSize: '0.95rem', borderRadius: 8, border: '1.5px solid #ccc', background: '#f5f5f5', color: '#aaa', cursor: 'not-allowed', marginTop: '0.5rem' } satisfies CSSProperties,
 }
 
 const card = {
-  wrap: { background: '#f8f8f8', borderRadius: 12, padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column' as const, gap: '0.25rem' } satisfies React.CSSProperties,
-  label: { fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.06em', color: '#888' } satisfies React.CSSProperties,
-  value: { fontSize: '1.75rem', fontWeight: 700, color: '#1a1a1a' } satisfies React.CSSProperties,
-  range: { fontSize: '0.85rem', color: '#888' } satisfies React.CSSProperties,
+  wrap: { background: '#f8f8f8', borderRadius: 12, padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column' as const, gap: '0.25rem' } satisfies CSSProperties,
+  label: { fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.06em', color: '#888' } satisfies CSSProperties,
+  value: { fontSize: '1.75rem', fontWeight: 700, color: '#1a1a1a' } satisfies CSSProperties,
+  range: { fontSize: '0.85rem', color: '#888' } satisfies CSSProperties,
 }
 
 export default function BrewParameters() {

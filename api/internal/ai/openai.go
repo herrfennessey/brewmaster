@@ -16,7 +16,7 @@ type OpenAIProvider struct {
 }
 
 // NewOpenAIProvider creates an OpenAIProvider from environment variables.
-// Requires OPENAI_API_KEY. AI_MODEL is optional and defaults to gpt-4.1-mini.
+// Requires OPENAI_API_KEY. AI_MODEL is optional and defaults to gpt-5.4-nano.
 func NewOpenAIProvider() (*OpenAIProvider, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {

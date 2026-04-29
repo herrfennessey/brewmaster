@@ -34,6 +34,7 @@ type parsedAIResponse struct {
 }
 
 func (h *ParseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 	var req parseBeanRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -63,7 +64,7 @@ func (h *ParseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var aiResp parsedAIResponse
 	if err := json.Unmarshal([]byte(raw), &aiResp); err != nil {
-		slog.Error("failed to parse AI tool response", "error", err, "raw", raw)
+		slog.Error("failed to parse AI tool response", "error", err, "raw", truncate(raw, 200))
 		writeError(w, http.StatusInternalServerError, "AI returned an unexpected response format")
 		return
 	}

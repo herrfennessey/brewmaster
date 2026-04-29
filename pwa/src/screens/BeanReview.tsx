@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { generateParametersAPI } from '../services/api'
 import { getBeanById, saveBeanProfile, saveBrewParameters } from '../services/storage'
@@ -6,19 +6,20 @@ import type { ParsedBean } from '../types'
 import ConfidenceBadge from '../components/ConfidenceBadge'
 
 const s = {
-  page: { maxWidth: 640, margin: '0 auto', padding: '2rem 1rem', fontFamily: 'system-ui, sans-serif' } satisfies React.CSSProperties,
-  back: { color: '#555', textDecoration: 'none', fontSize: '0.9rem' } satisfies React.CSSProperties,
-  heading: { margin: '1rem 0 0.5rem' } satisfies React.CSSProperties,
-  confidenceNote: { color: '#555', fontSize: '0.85rem', margin: '0.35rem 0 1.5rem' } satisfies React.CSSProperties,
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' } satisfies React.CSSProperties,
-  fieldBlock: { display: 'flex', flexDirection: 'column' as const, gap: '0.3rem' } satisfies React.CSSProperties,
-  label: { fontSize: '0.8rem', fontWeight: 600, color: '#555', textTransform: 'uppercase' as const, letterSpacing: '0.05em' } satisfies React.CSSProperties,
-  input: { padding: '0.5rem 0.75rem', borderRadius: 6, border: '1.5px solid #ccc', fontSize: '0.95rem' } satisfies React.CSSProperties,
-  errorMsg: { color: '#c00', margin: '0 0 1rem', fontSize: '0.9rem' } satisfies React.CSSProperties,
-  btn: { width: '100%', padding: '0.85rem', fontSize: '1rem', fontWeight: 700, borderRadius: 8, border: 'none', background: '#1a1a1a', color: '#fff', cursor: 'pointer' } satisfies React.CSSProperties,
+  page: { maxWidth: 640, margin: '0 auto', padding: '2rem 1rem', fontFamily: 'system-ui, sans-serif' } satisfies CSSProperties,
+  back: { color: '#555', textDecoration: 'none', fontSize: '0.9rem' } satisfies CSSProperties,
+  heading: { margin: '1rem 0 0.5rem' } satisfies CSSProperties,
+  confidenceNote: { color: '#555', fontSize: '0.85rem', margin: '0.35rem 0 1.5rem' } satisfies CSSProperties,
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' } satisfies CSSProperties,
+  fieldBlock: { display: 'flex', flexDirection: 'column' as const, gap: '0.3rem' } satisfies CSSProperties,
+  label: { fontSize: '0.8rem', fontWeight: 600, color: '#555', textTransform: 'uppercase' as const, letterSpacing: '0.05em' } satisfies CSSProperties,
+  input: { padding: '0.5rem 0.75rem', borderRadius: 6, border: '1.5px solid #ccc', fontSize: '0.95rem' } satisfies CSSProperties,
+  errorMsg: { color: '#c00', margin: '0 0 1rem', fontSize: '0.9rem' } satisfies CSSProperties,
+  btn: { width: '100%', padding: '0.85rem', fontSize: '1rem', fontWeight: 700, borderRadius: 8, border: 'none', background: '#1a1a1a', color: '#fff', cursor: 'pointer' } satisfies CSSProperties,
 }
 
-const numericFields = new Set<keyof ParsedBean>(['altitude_m', 'lot_year'])
+const numericFields = new Set<keyof ParsedBean>(['altitude_m'])
+const integerFields = new Set<keyof ParsedBean>(['lot_year'])
 
 export default function BeanReview() {
   const { id } = useParams<{ id: string }>()
@@ -37,6 +38,10 @@ export default function BeanReview() {
     setParsed(prev => {
       if (!prev) return prev
       if (value === '') return { ...prev, [key]: null }
+      if (integerFields.has(key)) {
+        const n = parseInt(value, 10)
+        return { ...prev, [key]: Number.isFinite(n) ? n : null }
+      }
       if (numericFields.has(key)) {
         const n = Number(value)
         return { ...prev, [key]: Number.isFinite(n) ? n : null }

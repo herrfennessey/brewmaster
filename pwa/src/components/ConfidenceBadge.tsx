@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import type { ConfidenceLevel } from '../types'
 
 const COLORS: Record<ConfidenceLevel, string> = { high: '#2a7a2a', medium: '#7a5a00', low: '#c00' }
@@ -7,7 +8,7 @@ interface Props {
 }
 
 export default function ConfidenceBadge({ level }: Props) {
-  const style: React.CSSProperties = {
+  const style: CSSProperties = {
     display: 'inline-block',
     padding: '0.25rem 0.65rem',
     borderRadius: 6,
