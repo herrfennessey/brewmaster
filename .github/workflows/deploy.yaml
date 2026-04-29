@@ -8,6 +8,10 @@ on:
       - '**.md'
   workflow_dispatch:
 
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 env:
   REGION: europe-west3
   SERVICE_NAME: brewmaster
