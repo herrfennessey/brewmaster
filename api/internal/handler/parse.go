@@ -181,6 +181,7 @@ func (h *ParseHandler) enrichImageProfile(r *http.Request, imageResp *parsedAIRe
 		"flavor_notes", webResp.Parsed.FlavorNotes,
 		"confidence", webResp.Confidence.Level,
 	)
+	slog.Info("enrichment succeeded", "roaster", *roasterName, "image_confidence", imageResp.Confidence.Level, "web_confidence", webResp.Confidence.Level)
 	return mergeProfiles(imageResp, &webResp), "image+web"
 }
 
@@ -326,6 +327,7 @@ func (h *ParseHandler) handleURL(w http.ResponseWriter, r *http.Request, req par
 	doc.Find("script, style, nav, footer, header").Remove()
 	text := wsRe.ReplaceAllString(doc.Text(), " ")
 	if len(text) > 32000 {
+		slog.Warn("URL content truncated at 32KB limit", "original_len", len(text), "url", req.Content)
 		text = text[:32000]
 	}
 
