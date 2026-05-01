@@ -6,6 +6,11 @@ import "context"
 // Provider is the interface all AI backends must implement.
 type Provider interface {
 	Complete(ctx context.Context, req *CompletionRequest) (string, error)
+	CompleteWithImage(ctx context.Context, req *CompletionRequest, imageData []byte, mediaType string) (string, error)
+	// FindRoasterContent searches the web for a roaster's product page and returns
+	// a plain-text summary of the bean details found. hint is optional extra context
+	// (e.g. origin country or producer name) to help disambiguate the roaster.
+	FindRoasterContent(ctx context.Context, roasterName, hint string) (string, error)
 }
 
 // CompletionRequest holds the inputs for a structured tool-call completion.

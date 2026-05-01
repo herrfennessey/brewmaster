@@ -10,6 +10,7 @@ const s = {
   back: { color: '#555', textDecoration: 'none', fontSize: '0.9rem' } satisfies CSSProperties,
   heading: { margin: '1rem 0 0.5rem' } satisfies CSSProperties,
   confidenceNote: { color: '#555', fontSize: '0.85rem', margin: '0.35rem 0 1.5rem' } satisfies CSSProperties,
+  enrichedNote: { color: '#2a7a2a', fontSize: '0.8rem', margin: '0.25rem 0 0', fontWeight: 500 } satisfies CSSProperties,
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' } satisfies CSSProperties,
   fieldBlock: { display: 'flex', flexDirection: 'column' as const, gap: '0.3rem' } satisfies CSSProperties,
   label: { fontSize: '0.8rem', fontWeight: 600, color: '#555', textTransform: 'uppercase' as const, letterSpacing: '0.05em' } satisfies CSSProperties,
@@ -71,6 +72,9 @@ export default function BeanReview() {
       <Link to="/" style={s.back}>← Back</Link>
       <h2 style={s.heading}>Review Bean Info</h2>
       <ConfidenceBadge level={original.confidence.level} />
+      {original.source_type === 'image+web' && (
+        <p style={s.enrichedNote}>Enriched with roaster website data</p>
+      )}
       <p style={s.confidenceNote}>{original.confidence.notes}</p>
 
       <div style={s.grid}>
