@@ -1,4 +1,4 @@
-import { useState, useRef, type CSSProperties, type DragEvent, type ClipboardEvent } from 'react'
+import { useState, useRef, useEffect, type CSSProperties, type DragEvent, type ClipboardEvent, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { parseBeanAPI, parseImageAPI, parseURLAPI } from '../services/api'
 import { saveBeanProfile } from '../services/storage'
@@ -16,6 +16,10 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    return () => { if (previewSrc) URL.revokeObjectURL(previewSrc) }
+  }, [previewSrc])
 
   function pickFile(f: File) {
     setFile(f)
@@ -37,7 +41,8 @@ export default function Home() {
     if (f) pickFile(f)
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
     setLoading(true)
     setError(null)
     try {
@@ -45,7 +50,11 @@ export default function Home() {
       if (activeTab === 'text') {
         bean = await parseBeanAPI(content.trim())
       } else if (activeTab === 'image') {
-        bean = await parseImageAPI(file!)
+        if (!file) {
+          setError('Please select a photo first')
+          return
+        }
+        bean = await parseImageAPI(file)
       } else {
         bean = await parseURLAPI(url.trim())
       }
@@ -68,10 +77,10 @@ export default function Home() {
     <div style={styles.page}>
       <header style={styles.header}>
         <h1 style={styles.title}>Brewmaster</h1>
-        <p style={styles.subtitle}>Get dialled-in espresso parameters from your coffee bag info</p>
+        <p style={styles.subtitle}>Get dialed-in espresso parameters from your coffee bag info</p>
       </header>
 
-      <div style={styles.form}>
+      <form onSubmit={handleSubmit} style={styles.form}>
         <div style={styles.tabBar}>
           {(['text', 'image', 'url'] as Tab[]).map(tab => (
             <button
@@ -154,16 +163,15 @@ export default function Home() {
         {error && <p style={styles.errorMsg}>{error}</p>}
 
         <button
-          type="button"
+          type="submit"
           style={{ ...styles.submitBtn, ...(canSubmit ? {} : styles.submitBtnDisabled) }}
           disabled={!canSubmit}
-          onClick={handleSubmit}
         >
           {loading
             ? (activeTab === 'url' ? 'Fetching page…' : 'Parsing bean info…')
             : 'Parse Bean →'}
         </button>
-      </div>
+      </form>
     </div>
   )
 }

@@ -202,6 +202,22 @@ func buildHint(p *models.ParsedBean) string {
 	if p.Producer != nil {
 		parts = append(parts, *p.Producer)
 	}
+	if p.Varietal != nil {
+		parts = append(parts, *p.Varietal)
+	}
+	if p.Process != nil {
+		parts = append(parts, *p.Process)
+	}
+	if p.RoastLevel != nil {
+		parts = append(parts, *p.RoastLevel+" roast")
+	}
+	// First two flavor notes are enough to identify the product without noise
+	for i, n := range p.FlavorNotes {
+		if i >= 2 {
+			break
+		}
+		parts = append(parts, n)
+	}
 	return strings.Join(parts, ", ")
 }
 
@@ -285,12 +301,22 @@ func (h *ParseHandler) handleURL(w http.ResponseWriter, r *http.Request, req par
 		}
 	}
 
-	resp, err := h.httpClient.Get(req.Content) //nolint:noctx
+	httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, req.Content, http.NoBody) //nolint:gosec // URL is validated against a blocklist above; this is a personal tool with no untrusted callers
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid URL")
+		return
+	}
+	resp, err := h.httpClient.Do(httpReq)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "failed to fetch URL")
 		return
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		writeError(w, http.StatusBadGateway, fmt.Sprintf("roaster page returned %d", resp.StatusCode))
+		return
+	}
 
 	doc, err := goquery.NewDocumentFromReader(io.LimitReader(resp.Body, 5<<20))
 	if err != nil {

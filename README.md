@@ -1,6 +1,6 @@
 # Brewmaster
 
-A PWA espresso assistant. Give it a coffee bag — as text, a photo, or a roaster URL — and it returns dialled-in brew parameters using specialty coffee domain knowledge (SCA standards, process/altitude/varietal logic).
+A PWA espresso assistant. Give it a coffee bag — as text, a photo, or a roaster URL — and it returns dialed-in brew parameters using specialty coffee domain knowledge (SCA standards, process/altitude/varietal logic).
 
 ## How it works
 
