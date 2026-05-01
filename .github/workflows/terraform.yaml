@@ -74,7 +74,10 @@ jobs:
 
       - name: Terraform Init
         id: init
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.GCP_PROJECT_ID }}-tfstate" \
+            -backend-config="prefix=brewmaster/terraform/state"
 
       - name: Terraform Validate
         id: validate

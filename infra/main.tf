@@ -9,8 +9,10 @@ terraform {
   }
 
   backend "gcs" {
-    bucket = "the-coffee-brewmaster-tfstate"
-    prefix = "brewmaster/terraform/state"
+    # Configured at init time:
+    #   terraform init \
+    #     -backend-config="bucket=the-coffee-brewmaster-tfstate" \
+    #     -backend-config="prefix=brewmaster/terraform/state"
   }
 }
 
