@@ -50,6 +50,9 @@ export default function BrewParameters() {
       <div className="results-badge-row">
         <ConfidenceBadge level={params.confidence.level} />
       </div>
+      {params.confidence.reason && (
+        <div className="results-reason">{params.confidence.reason}</div>
+      )}
 
       <div className="param-grid">
         <ParamCell label="Dose"        param={p.dose_g}        unit="g"  />

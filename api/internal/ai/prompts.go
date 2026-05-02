@@ -96,7 +96,7 @@ var BrewParamTool = Tool{
 	Schema: map[string]any{
 		"type":                 "object",
 		"additionalProperties": false,
-		"required":             []string{"parameters", "confidence", "reasoning", "flags", "iteration"},
+		"required":             []string{"parameters", "confidence", "reasoning", "iteration"},
 		"$defs": map[string]any{
 			"param_value": map[string]any{
 				"type":                 "object",

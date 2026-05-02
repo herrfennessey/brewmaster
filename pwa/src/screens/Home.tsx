@@ -169,6 +169,7 @@ export default function Home() {
                 tabIndex={0}
                 role="button"
                 aria-label="Upload bag photo"
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
               >
                 {previewSrc ? (
                   <img src={previewSrc} alt="Preview" className="drop-zone__preview" />
