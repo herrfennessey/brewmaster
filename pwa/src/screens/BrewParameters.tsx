@@ -1,95 +1,117 @@
-import type { CSSProperties } from 'react'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getBrewParamsForBean } from '../services/storage'
+import { getBrewParamsForBean, getBeanById } from '../services/storage'
 import type { ParameterValue } from '../types'
 import ConfidenceBadge from '../components/ConfidenceBadge'
 
-const s = {
-  page: { maxWidth: 640, margin: '0 auto', padding: '2rem 1rem', fontFamily: 'system-ui, sans-serif' } satisfies CSSProperties,
-  back: { color: '#555', textDecoration: 'none', fontSize: '0.9rem' } satisfies CSSProperties,
-  heading: { margin: '1rem 0 0.25rem' } satisfies CSSProperties,
-  reason: { color: '#555', fontSize: '0.9rem', margin: '0.5rem 0 1rem' } satisfies CSSProperties,
-
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', margin: '1.25rem 0' } satisfies CSSProperties,
-  section: { marginBottom: '1.25rem' } satisfies CSSProperties,
-  sectionTitle: { fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#555', margin: '0 0 0.5rem' } satisfies CSSProperties,
-  reasoning: { color: '#333', lineHeight: 1.6, margin: 0 } satisfies CSSProperties,
-  flagRow: { display: 'flex', flexWrap: 'wrap' as const, gap: '0.5rem' } satisfies CSSProperties,
-  flag: { background: '#fff3cd', color: '#7a5a00', border: '1px solid #f0d080', borderRadius: 6, padding: '0.3rem 0.75rem', fontSize: '0.85rem' } satisfies CSSProperties,
-  disabledBtn: { width: '100%', padding: '0.85rem', fontSize: '0.95rem', borderRadius: 8, border: '1.5px solid #ccc', background: '#f5f5f5', color: '#aaa', cursor: 'not-allowed', marginTop: '0.5rem' } satisfies CSSProperties,
-}
-
-const card = {
-  wrap: { background: '#f8f8f8', borderRadius: 12, padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column' as const, gap: '0.25rem' } satisfies CSSProperties,
-  label: { fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.06em', color: '#888' } satisfies CSSProperties,
-  value: { fontSize: '1.75rem', fontWeight: 700, color: '#1a1a1a' } satisfies CSSProperties,
-  range: { fontSize: '0.85rem', color: '#888' } satisfies CSSProperties,
+function truncate(s: string, max: number) {
+  return s.length > max ? s.slice(0, max).trimEnd() + '…' : s
 }
 
 export default function BrewParameters() {
   const { beanId } = useParams<{ beanId: string }>()
   const params = getBrewParamsForBean(beanId ?? '')
+  const bean = getBeanById(beanId ?? '')
+  const [showReasoning, setShowReasoning] = useState(false)
 
   if (!params) {
-    return <div style={s.page}><p>No parameters found. <Link to="/">Start over</Link></p></div>
+    return (
+      <div className="screen results-screen">
+        <p style={{ color: 'var(--text-2)' }}>No parameters found. <Link to="/">Start over</Link></p>
+      </div>
+    )
   }
 
   const p = params.parameters
+  const parsed = bean?.parsed
+
+  const roaster   = parsed?.roaster_name   ?? null
+  const region    = parsed?.origin_region  ?? null
+  const country   = parsed?.origin_country ?? null
+  const process   = parsed?.process        ?? null
+  const roastLevel = parsed?.roast_level   ?? null
+  const varietal  = parsed?.varietal       ?? null
+
+  // Origin makes a better page title than a company's legal name
+  const locationTitle = [region, country].filter(Boolean).join(', ')
+  const title = locationTitle || truncate(roaster ?? 'Brew Parameters', 36)
+  const beanMeta = [varietal, process, roastLevel].filter(Boolean).join(' · ')
 
   return (
-    <div style={s.page}>
-      <Link to={`/review/${params.bean_id}`} style={s.back}>← Back to bean review</Link>
-      <h2 style={s.heading}>Brew Parameters</h2>
-      <ConfidenceBadge level={params.confidence.level} />
-      {params.confidence.reason && <p style={s.reason}>{params.confidence.reason}</p>}
+    <div className="screen results-screen">
+      <Link to="/" className="results-back">← New beans</Link>
 
-      <div style={s.grid}>
-        <ParamCard label="Dose" param={p.dose_g} unit="g" />
-        <ParamCard label="Yield" param={p.yield_g} unit="g" />
-        <ParamCard label="Ratio" value={p.ratio} />
-        <ParamCard label="Temperature" param={p.temp_c} unit="°C" />
-        <ParamCard label="Time" param={p.time_s} unit="s" />
-        <ParamCard label="Preinfusion" param={p.preinfusion_s} unit="s" />
+      <div className="results-bean">
+        {roaster && <div className="results-roaster">{truncate(roaster, 42)}</div>}
+        <div className="results-title">{title}</div>
+        {beanMeta && <div className="results-meta">{beanMeta}</div>}
       </div>
 
-      {params.reasoning && (
-        <section style={s.section}>
-          <h3 style={s.sectionTitle}>Reasoning</h3>
-          <p style={s.reasoning}>{params.reasoning}</p>
-        </section>
-      )}
+      <div className="results-badge-row">
+        <ConfidenceBadge level={params.confidence.level} />
+      </div>
+
+      <div className="param-grid">
+        <ParamCell label="Dose"        param={p.dose_g}        unit="g"  />
+        <ParamCell label="Yield"       param={p.yield_g}       unit="g"  />
+        <ParamCell label="Ratio"       value={p.ratio}                    />
+        <ParamCell label="Temperature" param={p.temp_c}        unit="°C" />
+        <ParamCell label="Time"        param={p.time_s}        unit="s"  />
+        <ParamCell label="Preinfusion" param={p.preinfusion_s} unit="s"  />
+      </div>
 
       {params.flags && params.flags.length > 0 && (
-        <section style={s.section}>
-          <h3 style={s.sectionTitle}>Notes</h3>
-          <div style={s.flagRow}>
-            {params.flags.map(flag => <span key={flag} style={s.flag}>{flag}</span>)}
+        <section className="results-section">
+          <div className="results-section-title">Notes</div>
+          <div className="flag-row">
+            {params.flags.map(flag => <span key={flag} className="flag-chip">{flag}</span>)}
           </div>
         </section>
       )}
 
-      <button style={s.disabledBtn} disabled title="Coming in Phase 3">
-        Log shot feedback (coming in Phase 3)
-      </button>
+      {params.reasoning && (
+        <section className="results-section">
+          <p className={`results-reasoning${showReasoning ? '' : ' results-reasoning--collapsed'}`}>
+            {params.reasoning}
+          </p>
+          <button className="reasoning-toggle" onClick={() => setShowReasoning(v => !v)}>
+            {showReasoning ? 'Show less' : 'Show reasoning'}
+          </button>
+        </section>
+      )}
+
+      <hr className="results-divider" />
+
+      <div className="results-actions">
+        <Link to={`/review/${params.bean_id}`} className="action-btn">
+          Edit bean details
+        </Link>
+        <Link to="/" className="action-btn action-btn--primary">
+          New analysis →
+        </Link>
+      </div>
     </div>
   )
 }
 
-function ParamCard({ label, param, unit, value }: { label: string; param?: ParameterValue; unit?: string; value?: string }) {
+function ParamCell({ label, param, unit, value }: { label: string; param?: ParameterValue; unit?: string; value?: string }) {
   if (value !== undefined) {
     return (
-      <div style={card.wrap}>
-        <div style={card.label}>{label}</div>
-        <div style={card.value}>{value}</div>
+      <div className="param-cell">
+        <div className="param-cell__label">{label}</div>
+        <div className="param-cell__value">{value}</div>
       </div>
     )
   }
   if (!param) return null
   return (
-    <div style={card.wrap}>
-      <div style={card.label}>{label}</div>
-      <div style={card.value}>{param.value}{unit}</div>
-      <div style={card.range}>{param.range[0]}–{param.range[1]}{unit}</div>
+    <div className="param-cell">
+      <div className="param-cell__label">{label}</div>
+      <div className="param-cell__value">
+        {param.value}
+        {unit && <span className="param-cell__unit">{unit}</span>}
+      </div>
+      <div className="param-cell__range">{param.range[0]}–{param.range[1]}{unit}</div>
     </div>
   )
 }

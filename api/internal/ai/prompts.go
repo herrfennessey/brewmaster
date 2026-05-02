@@ -81,7 +81,13 @@ Espresso standards and logic to apply:
   - dark: lower temp, shorter time, lower ratio
 - Widen confidence ranges proportionally to missing fields
 - Add a flag for any unusual varietals (Gesha, Eugenioides, Robusta, etc.)
-- Preinfusion: 4–8s standard, lean toward lower for darker roasts`
+- Preinfusion: 4–8s standard, lean toward lower for darker roasts
+
+Output format rules — follow exactly:
+- ratio: the string must be ONLY "1:X" or "1:X.X" (e.g. "1:2.5"). No other text, no parentheses, no explanation.
+- reasoning: 2–3 sentences maximum. Justify the key parameter choices concisely.
+- confidence.reason: one sentence only.
+- flags: each flag is a short label under 60 characters. Use flags only for genuinely unusual factors. Omit flags entirely if nothing unusual applies.`
 
 // BrewParamTool is the tool definition used to force structured output from the generate-parameters call.
 var BrewParamTool = Tool{
@@ -115,7 +121,7 @@ var BrewParamTool = Tool{
 				"properties": map[string]any{
 					"dose_g":        map[string]any{"$ref": "#/$defs/param_value"},
 					"yield_g":       map[string]any{"$ref": "#/$defs/param_value"},
-					"ratio":         map[string]any{"type": "string"},
+					"ratio":         map[string]any{"type": "string", "pattern": `^1:\d+(\.\d+)?$`, "description": "Brew ratio as '1:X' or '1:X.X' only — no other text"},
 					"temp_c":        map[string]any{"$ref": "#/$defs/param_value"},
 					"time_s":        map[string]any{"$ref": "#/$defs/param_value"},
 					"preinfusion_s": map[string]any{"$ref": "#/$defs/param_value"},
@@ -127,11 +133,11 @@ var BrewParamTool = Tool{
 				"required":             []string{"level", "reason"},
 				"properties": map[string]any{
 					"level":  map[string]any{"type": "string", "enum": []string{"high", "medium", "low"}},
-					"reason": map[string]any{"type": "string"},
+					"reason": map[string]any{"type": "string", "maxLength": 160, "description": "One sentence summarizing confidence level"},
 				},
 			},
-			"reasoning": map[string]any{"type": "string"},
-			"flags":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"reasoning": map[string]any{"type": "string", "maxLength": 400, "description": "2–3 sentences justifying the key parameter choices"},
+			"flags":     map[string]any{"type": "array", "items": map[string]any{"type": "string", "maxLength": 60}, "description": "Short labels for unusual factors only"},
 			"iteration": map[string]any{"type": "integer"},
 		},
 	},

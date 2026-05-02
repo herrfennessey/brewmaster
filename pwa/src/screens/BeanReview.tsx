@@ -1,23 +1,9 @@
-import { useState, type CSSProperties } from 'react'
+import { useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { generateParametersAPI } from '../services/api'
 import { getBeanById, saveBeanProfile, saveBrewParameters } from '../services/storage'
 import type { ParsedBean } from '../types'
 import ConfidenceBadge from '../components/ConfidenceBadge'
-
-const s = {
-  page: { maxWidth: 640, margin: '0 auto', padding: '2rem 1rem', fontFamily: 'system-ui, sans-serif' } satisfies CSSProperties,
-  back: { color: '#555', textDecoration: 'none', fontSize: '0.9rem' } satisfies CSSProperties,
-  heading: { margin: '1rem 0 0.5rem' } satisfies CSSProperties,
-  confidenceNote: { color: '#555', fontSize: '0.85rem', margin: '0.35rem 0 1.5rem' } satisfies CSSProperties,
-  enrichedNote: { color: '#2a7a2a', fontSize: '0.8rem', margin: '0.25rem 0 0', fontWeight: 500 } satisfies CSSProperties,
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' } satisfies CSSProperties,
-  fieldBlock: { display: 'flex', flexDirection: 'column' as const, gap: '0.3rem' } satisfies CSSProperties,
-  label: { fontSize: '0.8rem', fontWeight: 600, color: '#555', textTransform: 'uppercase' as const, letterSpacing: '0.05em' } satisfies CSSProperties,
-  input: { padding: '0.5rem 0.75rem', borderRadius: 6, border: '1.5px solid #ccc', fontSize: '0.95rem' } satisfies CSSProperties,
-  errorMsg: { color: '#c00', margin: '0 0 1rem', fontSize: '0.9rem' } satisfies CSSProperties,
-  btn: { width: '100%', padding: '0.85rem', fontSize: '1rem', fontWeight: 700, borderRadius: 8, border: 'none', background: '#1a1a1a', color: '#fff', cursor: 'pointer' } satisfies CSSProperties,
-}
 
 const numericFields = new Set<keyof ParsedBean>(['altitude_m'])
 const integerFields = new Set<keyof ParsedBean>(['lot_year'])
@@ -32,7 +18,11 @@ export default function BeanReview() {
   const [error, setError] = useState<string | null>(null)
 
   if (!original || !parsed) {
-    return <div style={s.page}><p>Bean not found. <Link to="/">Start over</Link></p></div>
+    return (
+      <div className="screen review-screen">
+        <p style={{ color: 'var(--text-2)' }}>Bean not found. <Link to="/">Start over</Link></p>
+      </div>
+    )
   }
 
   function updateField(key: keyof ParsedBean, value: string) {
@@ -68,44 +58,50 @@ export default function BeanReview() {
   }
 
   return (
-    <div style={s.page}>
-      <Link to="/" style={s.back}>← Back</Link>
-      <h2 style={s.heading}>Review Bean Info</h2>
-      <ConfidenceBadge level={original.confidence.level} />
-      {original.source_type === 'image+web' && (
-        <p style={s.enrichedNote}>Enriched with roaster website data</p>
-      )}
-      <p style={s.confidenceNote}>{original.confidence.notes}</p>
+    <div className="screen review-screen">
+      <Link to={`/brew/${original.id}`} className="review-back">← Back to parameters</Link>
 
-      <div style={s.grid}>
+      <div>
+        <h2 className="review-heading">Edit Bean Details</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <ConfidenceBadge level={original.confidence.level} />
+          {original.source_type === 'image+web' && (
+            <span className="review-enriched">enriched from roaster site</span>
+          )}
+        </div>
+        <p className="review-note" style={{ marginTop: 8 }}>{original.confidence.notes}</p>
+      </div>
+
+      <div className="review-grid">
         {fields.map(({ key, label }) => (
-          <div key={key} style={s.fieldBlock}>
-            <label htmlFor={key} style={s.label}>{label}</label>
+          <div key={key} className="review-field">
+            <label htmlFor={key}>{label}</label>
             <input
               id={key}
-              style={s.input}
               value={getFieldValue(parsed, key)}
               onChange={e => updateField(key, e.target.value)}
               placeholder="unknown"
             />
           </div>
         ))}
-        <div style={s.fieldBlock}>
-          <label htmlFor="flavor_notes" style={s.label}>Flavor notes</label>
+        <div className="review-field">
+          <label htmlFor="flavor_notes">Flavor notes</label>
           <input
             id="flavor_notes"
-            style={s.input}
             value={parsed.flavor_notes?.join(', ') ?? ''}
-            onChange={e => setParsed(p => p ? { ...p, flavor_notes: e.target.value ? e.target.value.split(',').map(t => t.trim()) : [] } : p)}
+            onChange={e => setParsed(p => p ? {
+              ...p,
+              flavor_notes: e.target.value ? e.target.value.split(',').map(t => t.trim()) : []
+            } : p)}
             placeholder="e.g. caramel, citrus, chocolate"
           />
         </div>
       </div>
 
-      {error && <p style={s.errorMsg}>{error}</p>}
+      {error && <p className="review-error">{error}</p>}
 
-      <button style={s.btn} onClick={handleConfirm} disabled={loading}>
-        {loading ? 'Generating parameters…' : 'Generate Brew Parameters →'}
+      <button className="review-submit" onClick={handleConfirm} disabled={loading}>
+        {loading ? 'Regenerating…' : 'Regenerate Parameters →'}
       </button>
     </div>
   )
@@ -119,14 +115,14 @@ function getFieldValue(parsed: ParsedBean, key: keyof ParsedBean): string {
 }
 
 const fields: { key: keyof ParsedBean; label: string }[] = [
-  { key: 'producer', label: 'Producer' },
-  { key: 'roaster_name', label: 'Roaster' },
+  { key: 'producer',       label: 'Producer' },
+  { key: 'roaster_name',   label: 'Roaster' },
   { key: 'origin_country', label: 'Country' },
-  { key: 'origin_region', label: 'Region' },
-  { key: 'altitude_m', label: 'Altitude (m)' },
-  { key: 'varietal', label: 'Varietal' },
-  { key: 'process', label: 'Process' },
-  { key: 'roast_level', label: 'Roast level' },
-  { key: 'roast_date', label: 'Roast date' },
-  { key: 'lot_year', label: 'Lot year' },
+  { key: 'origin_region',  label: 'Region' },
+  { key: 'altitude_m',     label: 'Altitude (m)' },
+  { key: 'varietal',       label: 'Varietal' },
+  { key: 'process',        label: 'Process' },
+  { key: 'roast_level',    label: 'Roast level' },
+  { key: 'roast_date',     label: 'Roast date' },
+  { key: 'lot_year',       label: 'Lot year' },
 ]
