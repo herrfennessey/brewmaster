@@ -1,9 +1,33 @@
-import { useState, useRef, useEffect, type CSSProperties, type DragEvent, type ClipboardEvent, type FormEvent } from 'react'
+import { useState, useRef, useEffect, type DragEvent, type ClipboardEvent, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { parseBeanAPI, parseImageAPI, parseURLAPI } from '../services/api'
-import { saveBeanProfile } from '../services/storage'
+import { parseBeanAPI, parseImageAPI, parseURLAPI, generateParametersAPI } from '../services/api'
+import { saveBeanProfile, saveBrewParameters } from '../services/storage'
 
 type Tab = 'text' | 'image' | 'url'
+type Phase = 'parsing' | 'brewing'
+
+function CupIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="4" y="10" width="18" height="14" rx="2.5" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M22 13.5 Q29 13.5 29 18 Q29 22.5 22 22.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+      <path d="M2.5 24 Q11.5 28 24 24" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <path d="M10 7 Q9 4.5 11 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.55"/>
+      <path d="M16 7 Q15 4.5 17 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.55"/>
+    </svg>
+  )
+}
+
+const HINTS: Record<Tab, string> = {
+  text:  'More detail = better parameters',
+  image: 'Vision AI reads the bag label',
+  url:   'Fetches & parses the product page',
+}
+
+const PHASE_LABELS: Record<Phase, string> = {
+  parsing: 'Reading your beans…',
+  brewing: 'Dialling in parameters…',
+}
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('text')
@@ -12,7 +36,7 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null)
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [phase, setPhase] = useState<Phase | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
@@ -43,8 +67,9 @@ export default function Home() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    setLoading(true)
     setError(null)
+    setPhase('parsing')
+
     try {
       let bean
       if (activeTab === 'text') {
@@ -52,151 +77,146 @@ export default function Home() {
       } else if (activeTab === 'image') {
         if (!file) {
           setError('Please select a photo first')
+          setPhase(null)
           return
         }
         bean = await parseImageAPI(file)
       } else {
         bean = await parseURLAPI(url.trim())
       }
+
       saveBeanProfile(bean)
-      navigate(`/review/${bean.id}`)
+      setPhase('brewing')
+
+      const params = await generateParametersAPI(bean)
+      saveBrewParameters(params)
+      navigate(`/brew/${bean.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setLoading(false)
+      setPhase(null)
     }
   }
 
-  const canSubmit = !loading && (
+  const canSubmit = phase === null && (
     (activeTab === 'text' && content.trim().length > 0) ||
     (activeTab === 'image' && file !== null) ||
     (activeTab === 'url' && url.trim().length > 0)
   )
 
-  return (
-    <div style={styles.page}>
-      <header style={styles.header}>
-        <h1 style={styles.title}>Brewmaster</h1>
-        <p style={styles.subtitle}>Get dialed-in espresso parameters from your coffee bag info</p>
-      </header>
+  if (phase !== null) {
+    return (
+      <div className="load-screen">
+        <CupIcon className="load-cup" />
+        <div className="load-text">
+          <div className="load-phase">{PHASE_LABELS[phase]}</div>
+          <div className="load-dots"><span /><span /><span /></div>
+        </div>
+      </div>
+    )
+  }
 
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <div style={styles.tabBar}>
+  return (
+    <div className="screen home-screen">
+      <div className="logo">
+        <CupIcon className="logo__icon" />
+        <span className="logo__name">Brewmaster</span>
+      </div>
+
+      <p className="home-tagline">Precision espresso from your coffee bag.</p>
+
+      <form onSubmit={handleSubmit} className="input-card">
+        <div className="input-card__tabs">
           {(['text', 'image', 'url'] as Tab[]).map(tab => (
             <button
               key={tab}
               type="button"
+              className={`tab-btn${activeTab === tab ? ' tab-btn--active' : ''}`}
               onClick={() => { setActiveTab(tab); setError(null) }}
-              style={activeTab === tab ? styles.tabActive : styles.tab}
             >
-              {tab === 'text' ? 'Text' : tab === 'image' ? 'Image' : 'URL'}
+              {tab === 'text' ? 'Text' : tab === 'image' ? 'Photo' : 'URL'}
             </button>
           ))}
         </div>
 
-        {activeTab === 'text' && (
-          <div style={styles.field}>
-            <label style={styles.label} htmlFor="bean-input">Coffee bean info</label>
+        <div className="input-card__body">
+          {activeTab === 'text' && (
             <textarea
-              id="bean-input"
-              style={styles.textarea}
+              className="bean-textarea"
               value={content}
               onChange={e => setContent(e.target.value)}
-              placeholder="Paste anything: bag label text, tasting notes, origin info..."
-              rows={8}
-              disabled={loading}
+              placeholder="Paste the bag label, origin notes, or anything you know about these beans…"
+              rows={7}
+              autoFocus
             />
-          </div>
-        )}
+          )}
 
-        {activeTab === 'image' && (
-          <div style={styles.field}>
-            <label style={styles.label}>Bag label photo</label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              style={{ display: 'none' }}
-              onChange={e => { if (e.target.files?.[0]) pickFile(e.target.files[0]) }}
-            />
-            <div
-              style={{ ...styles.dropZone, ...(dragOver ? styles.dropZoneOver : {}) }}
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onPaste={handlePaste}
-              tabIndex={0}
-            >
-              {previewSrc
-                ? <img src={previewSrc} alt="Preview" style={styles.preview} />
-                : <span style={styles.dropHint}>Drop, paste, or click to browse<br /><small>JPEG, PNG, WEBP</small></span>
-              }
-            </div>
-          </div>
-        )}
+          {activeTab === 'image' && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: 'none' }}
+                onChange={e => { if (e.target.files?.[0]) pickFile(e.target.files[0]) }}
+              />
+              <div
+                className={`drop-zone${dragOver ? ' drop-zone--over' : ''}`}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                onPaste={handlePaste}
+                tabIndex={0}
+                role="button"
+                aria-label="Upload bag photo"
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
+              >
+                {previewSrc ? (
+                  <img src={previewSrc} alt="Preview" className="drop-zone__preview" />
+                ) : (
+                  <div className="drop-zone__prompt">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="3"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <span>Drop, paste or click to browse</span>
+                    <small>JPEG · PNG · WEBP</small>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
-        {activeTab === 'url' && (
-          <div style={styles.field}>
-            <label style={styles.label} htmlFor="url-input">Roaster product page URL</label>
+          {activeTab === 'url' && (
             <input
-              id="url-input"
               type="url"
-              style={styles.urlInput}
+              className="bean-url-input"
               value={url}
               onChange={e => setUrl(e.target.value)}
-              placeholder="https://example.com/product/kenya-aa"
-              disabled={loading}
+              placeholder="https://roaster.com/product/ethiopia-yirgacheffe"
+              autoFocus
             />
-          </div>
-        )}
-
-        <div style={styles.field}>
-          <label style={styles.label}>Target drink</label>
-          <div style={styles.drinkRow}>
-            <button type="button" style={styles.drinkActive}>Espresso</button>
-            <button type="button" style={styles.drinkDisabled} disabled title="Coming soon">Filter</button>
-            <button type="button" style={styles.drinkDisabled} disabled title="Coming soon">Lungo</button>
-          </div>
+          )}
         </div>
 
-        {error && <p style={styles.errorMsg}>{error}</p>}
-
-        <button
-          type="submit"
-          style={{ ...styles.submitBtn, ...(canSubmit ? {} : styles.submitBtnDisabled) }}
-          disabled={!canSubmit}
-        >
-          {loading
-            ? (activeTab === 'url' ? 'Fetching page…' : 'Parsing bean info…')
-            : 'Parse Bean →'}
-        </button>
+        <div className="input-card__foot">
+          {error
+            ? <span className="foot-error">{error}</span>
+            : <span className="foot-hint">{HINTS[activeTab]}</span>
+          }
+          <button type="submit" className="parse-btn" disabled={!canSubmit}>
+            Analyse →
+          </button>
+        </div>
       </form>
+
+      <div className="drink-row">
+        <span className="drink-label">Brew type:</span>
+        <button type="button" className="drink-chip drink-chip--active">Espresso</button>
+        <button type="button" className="drink-chip" disabled title="Coming soon">Filter</button>
+        <button type="button" className="drink-chip" disabled title="Coming soon">Lungo</button>
+      </div>
     </div>
   )
-}
-
-const styles = {
-  page: { maxWidth: 600, margin: '0 auto', padding: '2rem 1rem', fontFamily: 'system-ui, sans-serif' } satisfies CSSProperties,
-  header: { marginBottom: '2rem', textAlign: 'center' as const } satisfies CSSProperties,
-  title: { fontSize: '2rem', fontWeight: 700, margin: 0 } satisfies CSSProperties,
-  subtitle: { color: '#555', marginTop: '0.5rem' } satisfies CSSProperties,
-  form: { display: 'flex', flexDirection: 'column' as const, gap: '1.5rem' } satisfies CSSProperties,
-  tabBar: { display: 'flex', gap: '0.5rem' } satisfies CSSProperties,
-  tab: { padding: '0.4rem 1rem', borderRadius: 6, border: '1.5px solid #ccc', background: '#f5f5f5', color: '#555', cursor: 'pointer', fontWeight: 500 } satisfies CSSProperties,
-  tabActive: { padding: '0.4rem 1rem', borderRadius: 6, border: '2px solid #1a1a1a', background: '#1a1a1a', color: '#fff', cursor: 'pointer', fontWeight: 600 } satisfies CSSProperties,
-  field: { display: 'flex', flexDirection: 'column' as const, gap: '0.4rem' } satisfies CSSProperties,
-  label: { fontWeight: 600, fontSize: '0.9rem', color: '#333' } satisfies CSSProperties,
-  textarea: { padding: '0.75rem', fontSize: '1rem', borderRadius: 8, border: '1.5px solid #ccc', resize: 'vertical' as const, lineHeight: 1.5 } satisfies CSSProperties,
-  urlInput: { padding: '0.75rem', fontSize: '1rem', borderRadius: 8, border: '1.5px solid #ccc' } satisfies CSSProperties,
-  dropZone: { padding: '2rem', borderRadius: 8, border: '2px dashed #ccc', background: '#fafafa', cursor: 'pointer', textAlign: 'center' as const, minHeight: 140, display: 'flex', alignItems: 'center', justifyContent: 'center' } satisfies CSSProperties,
-  dropZoneOver: { borderColor: '#1a1a1a', background: '#f0f0f0' } satisfies CSSProperties,
-  dropHint: { color: '#888', lineHeight: 1.8 } satisfies CSSProperties,
-  preview: { maxHeight: 200, maxWidth: '100%', borderRadius: 6, objectFit: 'contain' as const } satisfies CSSProperties,
-  drinkRow: { display: 'flex', gap: '0.75rem' } satisfies CSSProperties,
-  drinkActive: { padding: '0.5rem 1.25rem', borderRadius: 8, border: '2px solid #1a1a1a', background: '#1a1a1a', color: '#fff', cursor: 'pointer', fontWeight: 600 } satisfies CSSProperties,
-  drinkDisabled: { padding: '0.5rem 1.25rem', borderRadius: 8, border: '1.5px solid #ddd', background: '#f5f5f5', color: '#aaa', cursor: 'not-allowed' as const } satisfies CSSProperties,
-  errorMsg: { color: '#c00', margin: 0, fontSize: '0.9rem' } satisfies CSSProperties,
-  submitBtn: { padding: '0.85rem', fontSize: '1rem', fontWeight: 700, borderRadius: 8, border: 'none', background: '#1a1a1a', color: '#fff', cursor: 'pointer' } satisfies CSSProperties,
-  submitBtnDisabled: { background: '#999', cursor: 'not-allowed' as const } satisfies CSSProperties,
 }

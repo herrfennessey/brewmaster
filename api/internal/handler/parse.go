@@ -87,7 +87,7 @@ func (h *ParseHandler) handleText(w http.ResponseWriter, r *http.Request, req pa
 
 func (h *ParseHandler) handleImage(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
-	if err := r.ParseMultipartForm(10 << 20); err != nil {
+	if err := r.ParseMultipartForm(10 << 20); err != nil { //nolint:gosec // body already bounded above by MaxBytesReader
 		writeError(w, http.StatusBadRequest, "invalid multipart form")
 		return
 	}
