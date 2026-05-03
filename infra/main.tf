@@ -103,9 +103,9 @@ resource "google_project_iam_member" "cloud_run_secret_accessor" {
 # Secret Manager — secrets created here, values set manually via gcloud
 # =============================================================================
 
-resource "google_secret_manager_secret" "anthropic_api_key" {
+resource "google_secret_manager_secret" "openai_api_key" {
   project   = var.project_id
-  secret_id = "anthropic-api-key"
+  secret_id = "openai-api-key"
 
   replication {
     auto {}
@@ -114,9 +114,9 @@ resource "google_secret_manager_secret" "anthropic_api_key" {
   depends_on = [google_project_service.secretmanager]
 }
 
-resource "google_secret_manager_secret" "openai_api_key" {
+resource "google_secret_manager_secret" "axiom_api_token" {
   project   = var.project_id
-  secret_id = "openai-api-key"
+  secret_id = "axiom-api-token"
 
   replication {
     auto {}

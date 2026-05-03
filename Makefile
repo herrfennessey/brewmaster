@@ -42,10 +42,10 @@ TAG ?= latest
 docker/build:
 	docker build -t brewmaster:$(TAG) .
 
-# Run the Docker image locally (requires ANTHROPIC_API_KEY in env)
+# Run the Docker image locally (requires OPENAI_API_KEY in env)
 docker/run:
 	docker run --rm -p 8080:8080 \
-		-e ANTHROPIC_API_KEY="$$ANTHROPIC_API_KEY" \
+		-e OPENAI_API_KEY="$$OPENAI_API_KEY" \
 brewmaster:$(TAG)
 
 # Remove build artifacts
