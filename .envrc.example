@@ -13,3 +13,10 @@ export GCP_PROJECT_ID=the-coffee-brewmaster
 
 # Disable auth for local development (no Firebase needed)
 export DISABLE_AUTH=true
+
+# Telemetry (Axiom EU) — optional. When AXIOM_API_TOKEN is empty, traces and
+# metrics are silently disabled. Set TELEMETRY_ENABLED=false to disable even
+# when a token is present.
+export AXIOM_API_TOKEN=
+export ENVIRONMENT=dev
+# export TELEMETRY_ENABLED=true
