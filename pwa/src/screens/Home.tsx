@@ -69,6 +69,7 @@ export default function Home() {
   const currentDrinks = extractionMethod === 'espresso' ? ESPRESSO_DRINKS : POUROVER_DRINKS
 
   function selectExtraction(method: ExtractionMethod) {
+    if (method === extractionMethod) return // preserve drink choice on no-op clicks
     setExtractionMethod(method)
     setDrinkType(method === 'espresso' ? 'espresso' : 'black')
   }
@@ -267,10 +268,11 @@ export default function Home() {
       <div className="brew-selector">
         <div className="brew-selector__section">
           <span className="brew-selector__label">Method</span>
-          <div className="brew-selector__chips">
+          <div className="brew-selector__chips" role="group" aria-label="Extraction method">
             <button
               type="button"
               className={`method-chip${extractionMethod === 'espresso' ? ' method-chip--active' : ''}`}
+              aria-pressed={extractionMethod === 'espresso'}
               onClick={() => selectExtraction('espresso')}
             >
               Espresso
@@ -278,6 +280,7 @@ export default function Home() {
             <button
               type="button"
               className={`method-chip${extractionMethod === 'pourover' ? ' method-chip--active' : ''}`}
+              aria-pressed={extractionMethod === 'pourover'}
               onClick={() => selectExtraction('pourover')}
             >
               Pourover
@@ -286,12 +289,13 @@ export default function Home() {
         </div>
         <div className="brew-selector__section brew-selector__section--drink">
           <span className="brew-selector__label">Drink</span>
-          <div className="brew-selector__chips">
+          <div className="brew-selector__chips" role="group" aria-label="Drink type">
             {currentDrinks.map(drink => (
               <button
                 key={drink}
                 type="button"
                 className={`drink-chip${drinkType === drink ? ' drink-chip--active' : ''}`}
+                aria-pressed={drinkType === drink}
                 onClick={() => setDrinkType(drink)}
               >
                 {DRINK_LABELS[drink]}

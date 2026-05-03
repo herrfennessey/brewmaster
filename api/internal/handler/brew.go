@@ -27,10 +27,21 @@ func NewBrewHandler(provider ai.Provider) http.Handler {
 }
 
 type generateParamsRequest struct {
-	TargetDrink      string             `json:"target_drink"`
 	ExtractionMethod string             `json:"extraction_method"`
 	DrinkType        string             `json:"drink_type"`
 	BeanProfile      models.BeanProfile `json:"bean_profile"`
+}
+
+// drinksByMethod is the canonical valid (extraction_method → drink_type) set.
+// Both client and server must agree on this — keep in sync with pwa/src/screens/Home.tsx.
+var drinksByMethod = map[string]map[string]bool{
+	"espresso": {
+		"espresso": true, "americano": true, "macchiato": true,
+		"cortado": true, "cappuccino": true, "flat white": true, "latte": true,
+	},
+	"pourover": {
+		"black": true, "cafe au lait": true,
+	},
 }
 
 type brewAnnotation struct {
@@ -49,7 +60,10 @@ func (h *BrewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "bean_profile must be provided with a valid id")
 		return
 	}
-	normalizeBrewRequest(&req)
+	if msg := normalizeBrewRequest(&req); msg != "" {
+		writeError(w, http.StatusBadRequest, msg)
+		return
+	}
 
 	canonical := brew.Normalize(&req.BeanProfile.Parsed)
 	computed := brew.ComputeParams(&canonical, req.ExtractionMethod, req.DrinkType)
@@ -109,21 +123,33 @@ func (h *BrewHandler) annotate(r *http.Request, req *generateParamsRequest, comp
 	return ann.Reasoning, ann.Flags
 }
 
-func normalizeBrewRequest(req *generateParamsRequest) {
+// normalizeBrewRequest lowercases and validates extraction_method/drink_type.
+// Returns a non-empty message describing why the request is invalid, or ""
+// when the request is valid (and possibly mutated to fill defaults).
+func normalizeBrewRequest(req *generateParamsRequest) string {
+	req.ExtractionMethod = strings.ToLower(strings.TrimSpace(req.ExtractionMethod))
+	req.DrinkType = strings.ToLower(strings.TrimSpace(req.DrinkType))
+
 	if req.ExtractionMethod == "" {
-		if req.TargetDrink == "pourover" || req.TargetDrink == "filter" {
-			req.ExtractionMethod = "pourover"
-		} else {
-			req.ExtractionMethod = "espresso"
-		}
+		req.ExtractionMethod = "espresso"
 	}
+	drinks, ok := drinksByMethod[req.ExtractionMethod]
+	if !ok {
+		return fmt.Sprintf("extraction_method %q is not supported (use 'espresso' or 'pourover')", req.ExtractionMethod)
+	}
+
 	if req.DrinkType == "" {
 		if req.ExtractionMethod == "pourover" {
 			req.DrinkType = "black"
 		} else {
 			req.DrinkType = "espresso"
 		}
+		return ""
 	}
+	if !drinks[req.DrinkType] {
+		return fmt.Sprintf("drink_type %q is not valid for extraction_method %q", req.DrinkType, req.ExtractionMethod)
+	}
+	return ""
 }
 
 // annotateBrewSpan attaches brew-specific metadata to the active request span

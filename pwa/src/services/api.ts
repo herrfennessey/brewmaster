@@ -37,11 +37,15 @@ export function parseURLAPI(url: string): Promise<BeanProfile> {
 export function generateParametersAPI(
   bean: BeanProfile,
   extractionMethod: ExtractionMethod = 'espresso',
-  drinkType: DrinkType = 'espresso',
+  drinkType?: DrinkType,
 ): Promise<BrewParameters> {
+  // Default the drink to one that's actually valid for the chosen method, so a
+  // caller passing only a method (e.g. 'pourover') doesn't end up sending an
+  // incompatible combination like pourover + espresso.
+  const drink: DrinkType = drinkType ?? (extractionMethod === 'pourover' ? 'black' : 'espresso')
   return postJSON<BrewParameters>('/api/generate-parameters', {
     bean_profile: bean,
     extraction_method: extractionMethod,
-    drink_type: drinkType,
+    drink_type: drink,
   })
 }
