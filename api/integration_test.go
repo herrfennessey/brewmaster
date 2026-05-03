@@ -63,11 +63,11 @@ func (c *integrationClient) decode(t *testing.T, resp *http.Response, dst any) {
 
 func newIntegrationServer(t *testing.T) *integrationClient {
 	t.Helper()
-	provider, err := ai.NewOpenAIProvider()
+	provider, err := ai.NewOpenAIProvider(nil)
 	if err != nil {
 		t.Fatalf("create AI provider: %v", err)
 	}
-	srv := httptest.NewServer(router.New(provider))
+	srv := httptest.NewServer(router.New(provider, nil))
 	t.Cleanup(srv.Close)
 	return &integrationClient{baseURL: srv.URL, http: srv.Client()}
 }
@@ -127,8 +127,9 @@ func testGenerateParametersReturnsValidBrewParams(t *testing.T, client *integrat
 	client.decode(t, parseResp, &profile)
 
 	brewResp := client.post(t, "/api/generate-parameters", map[string]any{
-		"bean_profile": profile,
-		"target_drink": "espresso",
+		"bean_profile":      profile,
+		"extraction_method": "espresso",
+		"drink_type":        "espresso",
 	})
 	if brewResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(brewResp.Body)
@@ -191,8 +192,33 @@ func TestIntegrationErrors(t *testing.T) {
 
 	t.Run("generate_parameters_rejects_missing_bean_id", func(t *testing.T) {
 		resp := client.post(t, "/api/generate-parameters", map[string]any{
-			"bean_profile": map[string]any{},
-			"target_drink": "espresso",
+			"bean_profile":      map[string]any{},
+			"extraction_method": "espresso",
+			"drink_type":        "espresso",
+		})
+		defer resp.Body.Close() //nolint:errcheck
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("generate_parameters_rejects_invalid_extraction_method", func(t *testing.T) {
+		resp := client.post(t, "/api/generate-parameters", map[string]any{
+			"bean_profile":      map[string]any{"id": "fake-id"},
+			"extraction_method": "french-press",
+			"drink_type":        "espresso",
+		})
+		defer resp.Body.Close() //nolint:errcheck
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("generate_parameters_rejects_incompatible_drink", func(t *testing.T) {
+		resp := client.post(t, "/api/generate-parameters", map[string]any{
+			"bean_profile":      map[string]any{"id": "fake-id"},
+			"extraction_method": "pourover",
+			"drink_type":        "latte",
 		})
 		defer resp.Body.Close() //nolint:errcheck
 		if resp.StatusCode != http.StatusBadRequest {

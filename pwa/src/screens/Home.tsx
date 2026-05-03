@@ -2,9 +2,14 @@ import { useState, useRef, useEffect, type DragEvent, type ClipboardEvent, type 
 import { useNavigate } from 'react-router-dom'
 import { parseBeanAPI, parseImageAPI, parseURLAPI, generateParametersAPI } from '../services/api'
 import { saveBeanProfile, saveBrewParameters } from '../services/storage'
+import type { DrinkType, ExtractionMethod } from '../types'
+import { DRINK_LABELS } from '../types'
 
 type Tab = 'text' | 'image' | 'url'
 type Phase = 'parsing' | 'brewing'
+
+const ESPRESSO_DRINKS: DrinkType[] = ['espresso', 'americano', 'macchiato', 'cortado', 'cappuccino', 'flat white', 'latte']
+const POUROVER_DRINKS: DrinkType[] = ['black', 'cafe au lait']
 
 function CupIcon({ className }: { className?: string }) {
   return (
@@ -16,6 +21,23 @@ function CupIcon({ className }: { className?: string }) {
       <path d="M16 7 Q15 4.5 17 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.55"/>
     </svg>
   )
+}
+
+function LinkIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+    </svg>
+  )
+}
+
+function urlHost(raw: string): string {
+  try {
+    return new URL(raw).hostname.replace(/^www\./, '')
+  } catch {
+    return raw.length > 40 ? raw.slice(0, 40) + '…' : raw
+  }
 }
 
 const HINTS: Record<Tab, string> = {
@@ -38,8 +60,19 @@ export default function Home() {
   const [dragOver, setDragOver] = useState(false)
   const [phase, setPhase] = useState<Phase | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [extractionMethod, setExtractionMethod] = useState<ExtractionMethod>('espresso')
+  const [drinkType, setDrinkType] = useState<DrinkType>('espresso')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const urlInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
+
+  const currentDrinks = extractionMethod === 'espresso' ? ESPRESSO_DRINKS : POUROVER_DRINKS
+
+  function selectExtraction(method: ExtractionMethod) {
+    if (method === extractionMethod) return // preserve drink choice on no-op clicks
+    setExtractionMethod(method)
+    setDrinkType(method === 'espresso' ? 'espresso' : 'black')
+  }
 
   useEffect(() => {
     return () => { if (previewSrc) URL.revokeObjectURL(previewSrc) }
@@ -88,7 +121,7 @@ export default function Home() {
       saveBeanProfile(bean)
       setPhase('brewing')
 
-      const params = await generateParametersAPI(bean)
+      const params = await generateParametersAPI(bean, extractionMethod, drinkType)
       saveBrewParameters(params)
       navigate(`/brew/${bean.id}`)
     } catch (err) {
@@ -122,7 +155,7 @@ export default function Home() {
         <span className="logo__name">Brewmaster</span>
       </div>
 
-      <p className="home-tagline">Precision espresso from your coffee bag.</p>
+      <p className="home-tagline">Precision brew parameters from your coffee bag.</p>
 
       <form onSubmit={handleSubmit} className="input-card">
         <div className="input-card__tabs">
@@ -189,14 +222,35 @@ export default function Home() {
           )}
 
           {activeTab === 'url' && (
-            <input
-              type="url"
-              className="bean-url-input"
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              placeholder="https://roaster.com/product/ethiopia-yirgacheffe"
-              autoFocus
-            />
+            <div className="url-zone">
+              <input
+                id="url-field"
+                ref={urlInputRef}
+                type="url"
+                className={`url-zone__input${url ? ' url-zone__input--filled' : ''}`}
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                autoFocus={!url}
+                tabIndex={url ? -1 : 0}
+              />
+              {url ? (
+                <div className="url-chip">
+                  <LinkIcon />
+                  <span className="url-chip__host">{urlHost(url)}</span>
+                  <button
+                    type="button"
+                    className="url-chip__remove"
+                    aria-label="Remove URL"
+                    onClick={() => { setUrl(''); setError(null); setTimeout(() => urlInputRef.current?.focus(), 0) }}
+                  >×</button>
+                </div>
+              ) : (
+                <label className="url-zone__prompt" htmlFor="url-field">
+                  <LinkIcon />
+                  <span>Paste a roaster product page URL</span>
+                </label>
+              )}
+            </div>
           )}
         </div>
 
@@ -211,11 +265,44 @@ export default function Home() {
         </div>
       </form>
 
-      <div className="drink-row">
-        <span className="drink-label">Brew type:</span>
-        <button type="button" className="drink-chip drink-chip--active">Espresso</button>
-        <button type="button" className="drink-chip" disabled title="Coming soon">Filter</button>
-        <button type="button" className="drink-chip" disabled title="Coming soon">Lungo</button>
+      <div className="brew-selector">
+        <div className="brew-selector__section">
+          <span className="brew-selector__label">Method</span>
+          <div className="brew-selector__chips" role="group" aria-label="Extraction method">
+            <button
+              type="button"
+              className={`method-chip${extractionMethod === 'espresso' ? ' method-chip--active' : ''}`}
+              aria-pressed={extractionMethod === 'espresso'}
+              onClick={() => selectExtraction('espresso')}
+            >
+              Espresso
+            </button>
+            <button
+              type="button"
+              className={`method-chip${extractionMethod === 'pourover' ? ' method-chip--active' : ''}`}
+              aria-pressed={extractionMethod === 'pourover'}
+              onClick={() => selectExtraction('pourover')}
+            >
+              Pourover
+            </button>
+          </div>
+        </div>
+        <div className="brew-selector__section brew-selector__section--drink">
+          <span className="brew-selector__label">Drink</span>
+          <div className="brew-selector__chips" role="group" aria-label="Drink type">
+            {currentDrinks.map(drink => (
+              <button
+                key={drink}
+                type="button"
+                className={`drink-chip${drinkType === drink ? ' drink-chip--active' : ''}`}
+                aria-pressed={drinkType === drink}
+                onClick={() => setDrinkType(drink)}
+              >
+                {DRINK_LABELS[drink]}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { generateParametersAPI } from '../services/api'
-import { getBeanById, saveBeanProfile, saveBrewParameters } from '../services/storage'
-import type { ParsedBean } from '../types'
+import { getBeanById, getBrewParamsForBean, saveBeanProfile, saveBrewParameters } from '../services/storage'
+import type { DrinkType, ExtractionMethod, ParsedBean } from '../types'
 import ConfidenceBadge from '../components/ConfidenceBadge'
 
 const numericFields = new Set<keyof ParsedBean>(['altitude_m'])
@@ -12,6 +12,7 @@ export default function BeanReview() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const original = getBeanById(id ?? '')
+  const existingParams = getBrewParamsForBean(id ?? '')
 
   const [parsed, setParsed] = useState<ParsedBean | null>(original?.parsed ?? null)
   const [loading, setLoading] = useState(false)
@@ -47,7 +48,9 @@ export default function BeanReview() {
     setLoading(true)
     setError(null)
     try {
-      const params = await generateParametersAPI(updated)
+      const method = (existingParams?.extraction_method ?? 'espresso') as ExtractionMethod
+      const drink = (existingParams?.drink_type ?? 'espresso') as DrinkType
+      const params = await generateParametersAPI(updated, method, drink)
       saveBrewParameters(params)
       navigate(`/brew/${updated.id}`)
     } catch (err) {

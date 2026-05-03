@@ -6,12 +6,18 @@ import (
 	"os"
 	"strings"
 
+	"go.opentelemetry.io/otel/trace"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/herrfennessey/brewmaster/api/internal/ai"
 	"github.com/herrfennessey/brewmaster/api/internal/handler"
 )
 
 // New creates and returns the HTTP router with all routes configured.
-func New(provider ai.Provider) http.Handler {
+// If tracerProvider is non-nil, all routes are wrapped with otelhttp middleware
+// for automatic request tracing.
+func New(provider ai.Provider, tracerProvider trace.TracerProvider) http.Handler {
 	mux := http.NewServeMux()
 
 	// Public health check
@@ -31,7 +37,19 @@ func New(provider ai.Provider) http.Handler {
 		mux.HandleFunc("/", handler.Health)
 	}
 
-	return corsMiddleware(mux)
+	corsHandler := corsMiddleware(mux)
+	if tracerProvider == nil {
+		return corsHandler
+	}
+	return otelhttp.NewHandler(corsHandler, "brewmaster-api",
+		otelhttp.WithTracerProvider(tracerProvider),
+		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+			if r.Pattern != "" {
+				return r.Pattern
+			}
+			return r.Method + " " + r.URL.Path
+		}),
+	)
 }
 
 // spaHandler serves static files and falls back to index.html for client-side routing.

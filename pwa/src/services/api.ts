@@ -1,4 +1,4 @@
-import type { BeanProfile, BrewParameters } from '../types'
+import type { BeanProfile, BrewParameters, DrinkType, ExtractionMethod } from '../types'
 
 async function postJSON<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
@@ -34,9 +34,18 @@ export function parseURLAPI(url: string): Promise<BeanProfile> {
   return postJSON<BeanProfile>('/api/parse-bean', { input_type: 'url', content: url })
 }
 
-export function generateParametersAPI(bean: BeanProfile, targetDrink = 'espresso'): Promise<BrewParameters> {
+export function generateParametersAPI(
+  bean: BeanProfile,
+  extractionMethod: ExtractionMethod = 'espresso',
+  drinkType?: DrinkType,
+): Promise<BrewParameters> {
+  // Default the drink to one that's actually valid for the chosen method, so a
+  // caller passing only a method (e.g. 'pourover') doesn't end up sending an
+  // incompatible combination like pourover + espresso.
+  const drink: DrinkType = drinkType ?? (extractionMethod === 'pourover' ? 'black' : 'espresso')
   return postJSON<BrewParameters>('/api/generate-parameters', {
     bean_profile: bean,
-    target_drink: targetDrink,
+    extraction_method: extractionMethod,
+    drink_type: drink,
   })
 }

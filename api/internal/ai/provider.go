@@ -16,10 +16,11 @@ type Provider interface {
 // CompletionRequest holds the inputs for a structured tool-call completion.
 // The AI is forced to call Tool and return its arguments as JSON.
 type CompletionRequest struct {
-	Tool         Tool
-	SystemPrompt string
-	UserMessage  string
-	MaxTokens    int
+	Tool          Tool
+	SystemPrompt  string
+	UserMessage   string
+	MaxTokens     int
+	Deterministic bool // if true, sets temperature=0 for reproducible output
 }
 
 // Tool describes the function the AI must call, with its JSON schema.

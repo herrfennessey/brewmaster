@@ -11,13 +11,19 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/herrfennessey/brewmaster/api/internal/ai"
 	"github.com/herrfennessey/brewmaster/api/internal/router"
+	"github.com/herrfennessey/brewmaster/api/internal/telemetry"
 )
 
 // Config holds application configuration loaded from environment variables.
 type Config struct {
-	Port string
+	Port             string
+	Environment      string
+	AxiomAPIToken    string
+	TelemetryEnabled bool
 }
 
 func loadConfig() Config {
@@ -25,19 +31,85 @@ func loadConfig() Config {
 	if port == "" {
 		port = "8080"
 	}
-	return Config{Port: port}
+	env := os.Getenv("ENVIRONMENT")
+	if env == "" {
+		env = "dev"
+	}
+	return Config{
+		Port:             port,
+		Environment:      env,
+		AxiomAPIToken:    os.Getenv("AXIOM_API_TOKEN"),
+		TelemetryEnabled: os.Getenv("TELEMETRY_ENABLED") != "false",
+	}
+}
+
+// telemetryResult holds the initialized telemetry components.
+type telemetryResult struct {
+	tracer          trace.Tracer
+	tracerProvider  trace.TracerProvider
+	tracerShutdown  func(context.Context) error
+	metricsShutdown func(context.Context) error
+}
+
+// initTelemetry initializes tracing and metrics if configured.
+func initTelemetry(ctx context.Context, cfg *Config) telemetryResult {
+	var result telemetryResult
+
+	if !cfg.TelemetryEnabled || cfg.AxiomAPIToken == "" {
+		slog.Info("Telemetry disabled or AXIOM_API_TOKEN not set; running without traces/metrics")
+		return result
+	}
+
+	telemetryCfg := telemetry.Config{
+		Enabled:       cfg.TelemetryEnabled,
+		AxiomAPIToken: cfg.AxiomAPIToken,
+		Environment:   cfg.Environment,
+	}
+
+	var err error
+	result.tracer, result.tracerProvider, result.tracerShutdown, err = telemetry.InitTracer(ctx, telemetryCfg)
+	if err != nil {
+		slog.Error("Failed to initialize tracer", "error", err)
+	} else {
+		slog.Info("Tracing initialized", "environment", cfg.Environment)
+	}
+
+	result.metricsShutdown, err = telemetry.InitMetrics(ctx, telemetryCfg)
+	if err != nil {
+		slog.Error("Failed to initialize metrics", "error", err)
+	} else {
+		slog.Info("Metrics initialized", "environment", cfg.Environment)
+	}
+
+	return result
+}
+
+func shutdownTelemetry(ctx context.Context, tel telemetryResult) {
+	if tel.tracerShutdown != nil {
+		if err := tel.tracerShutdown(ctx); err != nil {
+			slog.Error("Tracer shutdown error", "error", err)
+		}
+	}
+	if tel.metricsShutdown != nil {
+		if err := tel.metricsShutdown(ctx); err != nil {
+			slog.Error("Metrics shutdown error", "error", err)
+		}
+	}
 }
 
 func main() {
 	cfg := loadConfig()
+	ctx := context.Background()
 
-	provider, err := ai.NewOpenAIProvider()
+	tel := initTelemetry(ctx, &cfg)
+
+	provider, err := ai.NewOpenAIProvider(tel.tracer)
 	if err != nil {
 		slog.Error("Failed to initialize AI provider", "error", err)
 		os.Exit(1)
 	}
 
-	r := router.New(provider)
+	r := router.New(provider, tel.tracerProvider)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -59,6 +131,7 @@ func main() {
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			slog.Error("Server shutdown error", "error", err)
 		}
+		shutdownTelemetry(shutdownCtx, tel)
 	}()
 
 	slog.Info("Starting server", "port", cfg.Port)
