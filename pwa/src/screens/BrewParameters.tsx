@@ -1,11 +1,40 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getBrewParamsForBean, getBeanById } from '../services/storage'
-import type { ParameterValue } from '../types'
+import type { DrinkSuitability, DrinkType, ParameterValue } from '../types'
+import { DRINK_LABELS } from '../types'
 import ConfidenceBadge from '../components/ConfidenceBadge'
 
 function truncate(s: string, max: number) {
   return s.length > max ? s.slice(0, max).trimEnd() + '…' : s
+}
+
+function getParamLabels(method: string) {
+  if (method === 'pourover') {
+    return { yield: 'Water', preinfusion: 'Bloom', time: 'Total Time' }
+  }
+  return { yield: 'Yield', preinfusion: 'Preinfusion', time: 'Time' }
+}
+
+function SuitabilityBanner({ s }: { s: DrinkSuitability | undefined }) {
+  if (!s || s.level === 'ideal' || s.level === 'suitable') return null
+  return (
+    <div className={`suitability-banner suitability-banner--${s.level}`}>
+      <span className="suitability-banner__label">
+        {s.level === 'poor' ? 'Poor pairing' : 'Not recommended'}
+      </span>
+      <span className="suitability-banner__reason">{s.reason}</span>
+    </div>
+  )
+}
+
+function SuitabilityChip({ s }: { s: DrinkSuitability | undefined }) {
+  if (!s || s.level === 'suboptimal' || s.level === 'poor') return null
+  return (
+    <span className={`suitability-chip suitability-chip--${s.level}`} title={s.reason}>
+      {s.level === 'ideal' ? 'Ideal pairing' : 'Suitable pairing'}
+    </span>
+  )
 }
 
 export default function BrewParameters() {
@@ -24,6 +53,7 @@ export default function BrewParameters() {
 
   const p = params.parameters
   const parsed = bean?.parsed
+  const labels = getParamLabels(params.extraction_method ?? 'espresso')
 
   const roaster   = parsed?.roaster_name   ?? null
   const region    = parsed?.origin_region  ?? null
@@ -32,14 +62,22 @@ export default function BrewParameters() {
   const roastLevel = parsed?.roast_level   ?? null
   const varietal  = parsed?.varietal       ?? null
 
-  // Origin makes a better page title than a company's legal name
   const locationTitle = [region, country].filter(Boolean).join(', ')
   const title = locationTitle || truncate(roaster ?? 'Brew Parameters', 36)
   const beanMeta = [varietal, process, roastLevel].filter(Boolean).join(' · ')
 
+  const methodLabel = params.extraction_method === 'pourover' ? 'Pourover' : 'Espresso'
+  const drinkLabel = params.drink_type ? (DRINK_LABELS[params.drink_type as DrinkType] ?? params.drink_type) : null
+
   return (
     <div className="screen results-screen">
       <Link to="/" className="results-back">← New beans</Link>
+
+      {(methodLabel || drinkLabel) && (
+        <div className="results-brew-context">
+          {methodLabel}{drinkLabel ? ` · ${drinkLabel}` : ''}
+        </div>
+      )}
 
       <div className="results-bean">
         {roaster && <div className="results-roaster">{truncate(roaster, 42)}</div>}
@@ -49,18 +87,21 @@ export default function BrewParameters() {
 
       <div className="results-badge-row">
         <ConfidenceBadge level={params.confidence.level} />
+        <SuitabilityChip s={params.suitability} />
       </div>
       {params.confidence.reason && (
         <div className="results-reason">{params.confidence.reason}</div>
       )}
 
+      <SuitabilityBanner s={params.suitability} />
+
       <div className="param-grid">
-        <ParamCell label="Dose"        param={p.dose_g}        unit="g"  />
-        <ParamCell label="Yield"       param={p.yield_g}       unit="g"  />
-        <ParamCell label="Ratio"       value={p.ratio}                    />
-        <ParamCell label="Temperature" param={p.temp_c}        unit="°C" />
-        <ParamCell label="Time"        param={p.time_s}        unit="s"  />
-        <ParamCell label="Preinfusion" param={p.preinfusion_s} unit="s"  />
+        <ParamCell label="Dose"            param={p.dose_g}        unit="g"  />
+        <ParamCell label={labels.yield}    param={p.yield_g}       unit="g"  />
+        <ParamCell label="Ratio"           value={p.ratio}                    />
+        <ParamCell label="Temperature"     param={p.temp_c}        unit="°C" />
+        <ParamCell label={labels.time}     param={p.time_s}        unit="s"  />
+        <ParamCell label={labels.preinfusion} param={p.preinfusion_s} unit="s"  />
       </div>
 
       {params.flags && params.flags.length > 0 && (

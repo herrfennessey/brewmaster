@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 
 	"github.com/herrfennessey/brewmaster/api/internal/ai"
@@ -21,16 +22,19 @@ func NewBrewHandler(provider ai.Provider) http.Handler {
 }
 
 type generateParamsRequest struct {
-	TargetDrink string             `json:"target_drink"`
-	BeanProfile models.BeanProfile `json:"bean_profile"`
+	TargetDrink      string             `json:"target_drink"`
+	ExtractionMethod string             `json:"extraction_method"`
+	DrinkType        string             `json:"drink_type"`
+	BeanProfile      models.BeanProfile `json:"bean_profile"`
 }
 
 type brewAIResponse struct {
-	Confidence models.BrewConfidence `json:"confidence"`
-	Reasoning  string                `json:"reasoning"`
-	Flags      []string              `json:"flags"`
-	Parameters models.BrewParams     `json:"parameters"`
-	Iteration  int                   `json:"iteration"`
+	Suitability models.DrinkSuitability `json:"suitability"`
+	Confidence  models.BrewConfidence   `json:"confidence"`
+	Reasoning   string                  `json:"reasoning"`
+	Flags       []string                `json:"flags"`
+	Parameters  models.BrewParams       `json:"parameters"`
+	Iteration   int                     `json:"iteration"`
 }
 
 func (h *BrewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -45,9 +49,7 @@ func (h *BrewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "bean_profile must be provided with a valid id")
 		return
 	}
-	if req.TargetDrink == "" {
-		req.TargetDrink = "espresso"
-	}
+	normalizeBrewRequest(&req)
 
 	userMsg := buildBrewUserMessage(&req)
 
@@ -70,13 +72,18 @@ func (h *BrewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fixRatio(&aiResp.Parameters)
+
 	params := models.BrewParameters{
-		BeanID:     req.BeanProfile.ID,
-		Parameters: aiResp.Parameters,
-		Confidence: aiResp.Confidence,
-		Reasoning:  aiResp.Reasoning,
-		Flags:      aiResp.Flags,
-		Iteration:  aiResp.Iteration,
+		BeanID:           req.BeanProfile.ID,
+		ExtractionMethod: req.ExtractionMethod,
+		DrinkType:        req.DrinkType,
+		Parameters:       aiResp.Parameters,
+		Confidence:       aiResp.Confidence,
+		Suitability:      aiResp.Suitability,
+		Reasoning:        aiResp.Reasoning,
+		Flags:            aiResp.Flags,
+		Iteration:        aiResp.Iteration,
 	}
 	if params.Iteration == 0 {
 		params.Iteration = 1
@@ -85,11 +92,40 @@ func (h *BrewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, params)
 }
 
+func normalizeBrewRequest(req *generateParamsRequest) {
+	if req.ExtractionMethod == "" {
+		if req.TargetDrink == "pourover" || req.TargetDrink == "filter" {
+			req.ExtractionMethod = "pourover"
+		} else {
+			req.ExtractionMethod = "espresso"
+		}
+	}
+	if req.DrinkType == "" {
+		if req.ExtractionMethod == "pourover" {
+			req.DrinkType = "black"
+		} else {
+			req.DrinkType = "espresso"
+		}
+	}
+}
+
+// fixRatio overwrites the AI-provided ratio string with the value derived from
+// yield_g / dose_g so the three fields are always internally consistent.
+func fixRatio(p *models.BrewParams) {
+	if p.DoseG.Value == 0 {
+		return
+	}
+	computed := p.YieldG.Value / p.DoseG.Value
+	rounded := math.Round(computed*10) / 10
+	p.Ratio = fmt.Sprintf("1:%.1f", rounded)
+}
+
 func buildBrewUserMessage(req *generateParamsRequest) string {
 	// BeanProfile contains no unencodable types; marshal cannot fail.
 	beanJSON, err := json.Marshal(req.BeanProfile)
 	if err != nil {
 		panic("brewmaster: marshal BeanProfile: " + err.Error())
 	}
-	return fmt.Sprintf("Target drink: %s\n\nBean profile:\n%s", req.TargetDrink, string(beanJSON))
+	return fmt.Sprintf("Extraction method: %s\nDrink: %s\n\nBean profile:\n%s",
+		req.ExtractionMethod, req.DrinkType, string(beanJSON))
 }

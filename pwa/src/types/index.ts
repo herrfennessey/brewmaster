@@ -47,10 +47,38 @@ export interface BrewConfidence {
   reason: string
 }
 
+export type ExtractionMethod = 'espresso' | 'pourover'
+
+export type DrinkType =
+  | 'espresso' | 'americano' | 'macchiato' | 'cortado' | 'cappuccino' | 'flat white' | 'latte'
+  | 'black' | 'cafe au lait'
+
+export type SuitabilityLevel = 'ideal' | 'suitable' | 'suboptimal' | 'poor'
+
+export interface DrinkSuitability {
+  level: SuitabilityLevel
+  reason: string
+}
+
+export const DRINK_LABELS: Record<DrinkType, string> = {
+  espresso: 'Espresso',
+  americano: 'Americano',
+  macchiato: 'Macchiato',
+  cortado: 'Cortado',
+  cappuccino: 'Cappuccino',
+  'flat white': 'Flat White',
+  latte: 'Latte',
+  black: 'Black',
+  'cafe au lait': 'Café au lait',
+}
+
 export interface BrewParameters {
   bean_id: string
+  extraction_method: ExtractionMethod
+  drink_type: DrinkType
   parameters: BrewParams
   confidence: BrewConfidence
+  suitability: DrinkSuitability
   reasoning: string
   flags: string[]
   iteration: number

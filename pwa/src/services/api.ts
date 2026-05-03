@@ -1,4 +1,4 @@
-import type { BeanProfile, BrewParameters } from '../types'
+import type { BeanProfile, BrewParameters, DrinkType, ExtractionMethod } from '../types'
 
 async function postJSON<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
@@ -34,9 +34,14 @@ export function parseURLAPI(url: string): Promise<BeanProfile> {
   return postJSON<BeanProfile>('/api/parse-bean', { input_type: 'url', content: url })
 }
 
-export function generateParametersAPI(bean: BeanProfile, targetDrink = 'espresso'): Promise<BrewParameters> {
+export function generateParametersAPI(
+  bean: BeanProfile,
+  extractionMethod: ExtractionMethod = 'espresso',
+  drinkType: DrinkType = 'espresso',
+): Promise<BrewParameters> {
   return postJSON<BrewParameters>('/api/generate-parameters', {
     bean_profile: bean,
-    target_drink: targetDrink,
+    extraction_method: extractionMethod,
+    drink_type: drinkType,
   })
 }

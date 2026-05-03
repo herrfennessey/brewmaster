@@ -56,12 +56,21 @@ type BrewConfidence struct {
 	Reason string `json:"reason"`
 }
 
+// DrinkSuitability is the AI's assessment of how well the bean suits the requested drink.
+type DrinkSuitability struct {
+	Level  string `json:"level"`  // "ideal" | "suitable" | "suboptimal" | "poor"
+	Reason string `json:"reason"` // one sentence
+}
+
 // BrewParameters is the full output of the generate-parameters endpoint.
 type BrewParameters struct {
-	Confidence BrewConfidence `json:"confidence"`
-	BeanID     string         `json:"bean_id"`
-	Reasoning  string         `json:"reasoning"`
-	Flags      []string       `json:"flags"`
-	Parameters BrewParams     `json:"parameters"`
-	Iteration  int            `json:"iteration"`
+	Suitability      DrinkSuitability `json:"suitability"`
+	Confidence       BrewConfidence   `json:"confidence"`
+	BeanID           string           `json:"bean_id"`
+	ExtractionMethod string           `json:"extraction_method"`
+	DrinkType        string           `json:"drink_type"`
+	Reasoning        string           `json:"reasoning"`
+	Flags            []string         `json:"flags"`
+	Parameters       BrewParams       `json:"parameters"`
+	Iteration        int              `json:"iteration"`
 }
