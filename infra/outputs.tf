@@ -31,12 +31,12 @@ output "github_variables_config" {
 output "seed_secrets_commands" {
   description = "Run these once to populate the Secret Manager secrets after terraform apply"
   value       = <<-EOT
-    # Anthropic API key
-    echo -n "sk-ant-..." | gcloud secrets versions add anthropic-api-key \
+    # OpenAI API key
+    echo -n "sk-proj-..." | gcloud secrets versions add openai-api-key \
       --data-file=- --project=${var.project_id}
 
-    # OpenAI API key (optional — only needed if using AI_PROVIDER=openai)
-    echo -n "sk-proj-..." | gcloud secrets versions add openai-api-key \
+    # Axiom API token (telemetry — leave unset to disable traces/metrics)
+    echo -n "xaat-..." | gcloud secrets versions add axiom-api-token \
       --data-file=- --project=${var.project_id}
   EOT
 }

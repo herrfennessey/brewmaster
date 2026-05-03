@@ -57,6 +57,6 @@ jobs:
             --memory 256Mi \
             --cpu 0.25 \
             --min-instances 0 \
-            --set-env-vars "GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}" \
-            --set-secrets "OPENAI_API_KEY=openai-api-key:latest" \
+            --set-env-vars "GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},ENVIRONMENT=production" \
+            --set-secrets "OPENAI_API_KEY=openai-api-key:latest,AXIOM_API_TOKEN=axiom-api-token:latest" \
             --project ${{ vars.GCP_PROJECT_ID }}
