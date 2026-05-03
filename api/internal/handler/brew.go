@@ -1,13 +1,18 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"math"
 	"net/http"
+	"strings"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/herrfennessey/brewmaster/api/internal/ai"
+	"github.com/herrfennessey/brewmaster/api/internal/brew"
 	"github.com/herrfennessey/brewmaster/api/internal/models"
 )
 
@@ -28,13 +33,9 @@ type generateParamsRequest struct {
 	BeanProfile      models.BeanProfile `json:"bean_profile"`
 }
 
-type brewAIResponse struct {
-	Suitability models.DrinkSuitability `json:"suitability"`
-	Confidence  models.BrewConfidence   `json:"confidence"`
-	Reasoning   string                  `json:"reasoning"`
-	Flags       []string                `json:"flags"`
-	Parameters  models.BrewParams       `json:"parameters"`
-	Iteration   int                     `json:"iteration"`
+type brewAnnotation struct {
+	Reasoning string   `json:"reasoning"`
+	Flags     []string `json:"flags"`
 }
 
 func (h *BrewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -44,52 +45,68 @@ func (h *BrewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-
 	if req.BeanProfile.ID == "" {
 		writeError(w, http.StatusBadRequest, "bean_profile must be provided with a valid id")
 		return
 	}
 	normalizeBrewRequest(&req)
 
-	userMsg := buildBrewUserMessage(&req)
+	canonical := brew.Normalize(&req.BeanProfile.Parsed)
+	computed := brew.ComputeParams(&canonical, req.ExtractionMethod, req.DrinkType)
+	suit := brew.ComputeSuitability(&canonical, req.DrinkType)
+	conf := brew.ComputeConfidence(&canonical)
 
-	raw, err := h.provider.Complete(r.Context(), &ai.CompletionRequest{
-		SystemPrompt: ai.BrewParamPrompt,
-		UserMessage:  userMsg,
-		MaxTokens:    1024,
-		Tool:         ai.BrewParamTool,
-	})
-	if err != nil {
-		slog.Error("AI completion failed", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to generate brew parameters")
-		return
-	}
+	annotateBrewSpan(r.Context(), &req, &canonical, &computed, suit, conf)
 
-	var aiResp brewAIResponse
-	if err := json.Unmarshal([]byte(raw), &aiResp); err != nil {
-		slog.Error("failed to parse AI tool response", "error", err, "raw", truncate(raw, 200))
-		writeError(w, http.StatusInternalServerError, "AI returned an unexpected response format")
-		return
-	}
+	slog.InfoContext(r.Context(), "brew computed",
+		"version", computed.Version,
+		"applied_rules", computed.AppliedRules,
+		"suitability_rule", suit.Rule,
+		"confidence", conf.Level,
+	)
 
-	fixRatio(&aiResp.Parameters)
+	reasoning, flags := h.annotate(r, &req, &computed, suit, conf)
 
 	params := models.BrewParameters{
 		BeanID:           req.BeanProfile.ID,
 		ExtractionMethod: req.ExtractionMethod,
 		DrinkType:        req.DrinkType,
-		Parameters:       aiResp.Parameters,
-		Confidence:       aiResp.Confidence,
-		Suitability:      aiResp.Suitability,
-		Reasoning:        aiResp.Reasoning,
-		Flags:            aiResp.Flags,
-		Iteration:        aiResp.Iteration,
+		Parameters:       computed.Params,
+		Confidence:       conf,
+		Suitability:      suit.DrinkSuitability,
+		Reasoning:        reasoning,
+		Flags:            flags,
+		Iteration:        1,
 	}
-	if params.Iteration == 0 {
-		params.Iteration = 1
+	writeJSON(w, http.StatusOK, params)
+}
+
+// annotate calls the LLM for optional prose annotation; falls back to a
+// deterministic summary if the call fails or returns empty reasoning.
+func (h *BrewHandler) annotate(r *http.Request, req *generateParamsRequest, computed *brew.ComputedParams, suit brew.SuitabilityResult, conf models.BrewConfidence) (reasoning string, flags []string) {
+	fallback := brew.FallbackReasoning(computed.AppliedRules)
+
+	raw, err := h.provider.Complete(r.Context(), &ai.CompletionRequest{
+		SystemPrompt:  ai.BrewAnnotatePrompt,
+		UserMessage:   buildBrewAnnotateMessage(req, computed, suit, conf),
+		MaxTokens:     400,
+		Tool:          ai.BrewAnnotateTool,
+		Deterministic: true,
+	})
+	if err != nil {
+		slog.Error("brew annotation failed, using fallback", "error", err)
+		return fallback, nil
 	}
 
-	writeJSON(w, http.StatusOK, params)
+	var ann brewAnnotation
+	if err := json.Unmarshal([]byte(raw), &ann); err != nil {
+		slog.Error("failed to parse brew annotation", "error", err, "raw", truncate(raw, 200))
+		return fallback, nil
+	}
+	if ann.Reasoning == "" {
+		ann.Reasoning = fallback
+	}
+	return ann.Reasoning, ann.Flags
 }
 
 func normalizeBrewRequest(req *generateParamsRequest) {
@@ -109,23 +126,53 @@ func normalizeBrewRequest(req *generateParamsRequest) {
 	}
 }
 
-// fixRatio overwrites the AI-provided ratio string with the value derived from
-// yield_g / dose_g so the three fields are always internally consistent.
-func fixRatio(p *models.BrewParams) {
-	if p.DoseG.Value == 0 {
+// annotateBrewSpan attaches brew-specific metadata to the active request span
+// (typically the otelhttp-created span). Safe to call when telemetry is disabled.
+func annotateBrewSpan(ctx context.Context, req *generateParamsRequest, bean *brew.CanonicalBean, computed *brew.ComputedParams, suit brew.SuitabilityResult, conf models.BrewConfidence) {
+	span := trace.SpanFromContext(ctx)
+	if !span.SpanContext().IsValid() {
 		return
 	}
-	computed := p.YieldG.Value / p.DoseG.Value
-	rounded := math.Round(computed*10) / 10
-	p.Ratio = fmt.Sprintf("1:%.1f", rounded)
+	rules := make([]string, 0, len(computed.AppliedRules))
+	for _, r := range computed.AppliedRules {
+		rules = append(rules, string(r))
+	}
+	span.SetAttributes(
+		attribute.String("brew.method", req.ExtractionMethod),
+		attribute.String("brew.drink", req.DrinkType),
+		attribute.String("brew.ruleset_version", computed.Version),
+		attribute.String("brew.suitability.level", suit.Level),
+		attribute.String("brew.suitability.rule", string(suit.Rule)),
+		attribute.String("brew.confidence.level", conf.Level),
+		attribute.Int("brew.applied_rules.count", len(rules)),
+		attribute.String("brew.applied_rules", strings.Join(rules, ",")),
+		attribute.String("brew.bean.process", bean.Process),
+		attribute.String("brew.bean.roast_level", bean.RoastLevel),
+		attribute.String("brew.bean.origin_country", bean.OriginCountry),
+		attribute.String("brew.bean.varietal", bean.Varietal),
+		attribute.Bool("brew.bean.altitude_known", bean.AltitudeKnown),
+		attribute.Float64("brew.params.temp_c", computed.Params.TempC.Value),
+		attribute.String("brew.params.ratio", computed.Params.Ratio),
+	)
+	if bean.AltitudeKnown {
+		span.SetAttributes(attribute.Float64("brew.bean.altitude_m", bean.AltitudeM))
+	}
 }
 
-func buildBrewUserMessage(req *generateParamsRequest) string {
-	// BeanProfile contains no unencodable types; marshal cannot fail.
-	beanJSON, err := json.Marshal(req.BeanProfile)
+func buildBrewAnnotateMessage(req *generateParamsRequest, computed *brew.ComputedParams, suit brew.SuitabilityResult, conf models.BrewConfidence) string {
+	beanJSON, err := json.Marshal(req.BeanProfile.Parsed)
 	if err != nil {
-		panic("brewmaster: marshal BeanProfile: " + err.Error())
+		panic("brewmaster: marshal BeanProfile.Parsed: " + err.Error())
 	}
-	return fmt.Sprintf("Extraction method: %s\nDrink: %s\n\nBean profile:\n%s",
-		req.ExtractionMethod, req.DrinkType, string(beanJSON))
+	p := computed.Params
+	return fmt.Sprintf(
+		"Extraction: %s\nDrink: %s\n\nBean profile:\n%s\n\nComputed parameters:\nDose %.1fg | Yield %.1fg | Ratio %s\nTemp %.1f°C | Time %.0fs | Bloom/Preinfusion %.0fs\n\nSuitability: %s — %s\nConfidence: %s\nRules applied: %v",
+		req.ExtractionMethod, req.DrinkType,
+		string(beanJSON),
+		p.DoseG.Value, p.YieldG.Value, p.Ratio,
+		p.TempC.Value, p.TimeS.Value, p.PreinfusionS.Value,
+		suit.Level, suit.Reason,
+		conf.Level,
+		computed.AppliedRules,
+	)
 }

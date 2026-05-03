@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,10 +14,21 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/herrfennessey/brewmaster/api/internal/ai"
 	"github.com/herrfennessey/brewmaster/api/internal/models"
 )
+
+// annotateParseSpan attaches parse-specific metadata to the active request span.
+func annotateParseSpan(ctx context.Context, attrs ...attribute.KeyValue) {
+	span := trace.SpanFromContext(ctx)
+	if !span.SpanContext().IsValid() {
+		return
+	}
+	span.SetAttributes(attrs...)
+}
 
 // ParseHandler handles POST /api/parse-bean requests.
 type ParseHandler struct {
@@ -56,6 +68,10 @@ func (h *ParseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	annotateParseSpan(r.Context(),
+		attribute.String("parse.input_type", req.InputType),
+		attribute.Int("parse.input.length", len(req.Content)),
+	)
 	switch req.InputType {
 	case "text":
 		h.handleText(w, r, req)
@@ -82,7 +98,7 @@ func (h *ParseHandler) handleText(w http.ResponseWriter, r *http.Request, req pa
 		writeError(w, http.StatusInternalServerError, "failed to parse bean info")
 		return
 	}
-	h.writeProfile(w, raw, "text")
+	h.writeProfile(w, r, raw, "text")
 }
 
 func (h *ParseHandler) handleImage(w http.ResponseWriter, r *http.Request) {
@@ -110,6 +126,11 @@ func (h *ParseHandler) handleImage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("unsupported image type %q: use JPEG, PNG, or WEBP", mediaType))
 		return
 	}
+	annotateParseSpan(r.Context(),
+		attribute.String("parse.input_type", "image"),
+		attribute.String("parse.media_type", mediaType),
+		attribute.Int("parse.image.size_bytes", len(data)),
+	)
 	slog.Info("image uploaded", "media_type", mediaType, "size_bytes", len(data))
 
 	slog.Info("calling vision API")
@@ -140,6 +161,7 @@ func (h *ParseHandler) handleImage(w http.ResponseWriter, r *http.Request) {
 
 	merged, sourceType := h.enrichImageProfile(r, &imageResp)
 	slog.Info("image parse complete", "source_type", sourceType)
+	h.annotateProfileSpan(r.Context(), &merged, sourceType)
 	h.writeProfileDirect(w, &merged, sourceType)
 }
 
@@ -342,16 +364,17 @@ func (h *ParseHandler) handleURL(w http.ResponseWriter, r *http.Request, req par
 		writeError(w, http.StatusInternalServerError, "failed to parse bean info from URL")
 		return
 	}
-	h.writeProfile(w, raw, "url")
+	h.writeProfile(w, r, raw, "url")
 }
 
-func (h *ParseHandler) writeProfile(w http.ResponseWriter, raw, sourceType string) {
+func (h *ParseHandler) writeProfile(w http.ResponseWriter, r *http.Request, raw, sourceType string) {
 	var aiResp parsedAIResponse
 	if err := json.Unmarshal([]byte(raw), &aiResp); err != nil {
 		slog.Error("failed to parse AI tool response", "error", err, "raw", truncate(raw, 200))
 		writeError(w, http.StatusInternalServerError, "AI returned an unexpected response format")
 		return
 	}
+	h.annotateProfileSpan(r.Context(), &aiResp, sourceType)
 	h.writeProfileDirect(w, &aiResp, sourceType)
 }
 
@@ -364,4 +387,17 @@ func (h *ParseHandler) writeProfileDirect(w http.ResponseWriter, aiResp *parsedA
 		CreatedAt:  time.Now().UTC(),
 	}
 	writeJSON(w, http.StatusOK, profile)
+}
+
+// annotateProfileSpan adds bean profile metadata to the active request span.
+func (h *ParseHandler) annotateProfileSpan(ctx context.Context, profile *parsedAIResponse, sourceType string) {
+	annotateParseSpan(ctx,
+		attribute.String("parse.source_type", sourceType),
+		attribute.String("parse.confidence.level", profile.Confidence.Level),
+		attribute.String("parse.bean.origin_country", derefStr(profile.Parsed.OriginCountry)),
+		attribute.String("parse.bean.process", derefStr(profile.Parsed.Process)),
+		attribute.String("parse.bean.varietal", derefStr(profile.Parsed.Varietal)),
+		attribute.String("parse.bean.roast_level", derefStr(profile.Parsed.RoastLevel)),
+		attribute.Int("parse.bean.flavor_notes.count", len(profile.Parsed.FlavorNotes)),
+	)
 }

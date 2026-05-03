@@ -63,11 +63,11 @@ func (c *integrationClient) decode(t *testing.T, resp *http.Response, dst any) {
 
 func newIntegrationServer(t *testing.T) *integrationClient {
 	t.Helper()
-	provider, err := ai.NewOpenAIProvider()
+	provider, err := ai.NewOpenAIProvider(nil)
 	if err != nil {
 		t.Fatalf("create AI provider: %v", err)
 	}
-	srv := httptest.NewServer(router.New(provider))
+	srv := httptest.NewServer(router.New(provider, nil))
 	t.Cleanup(srv.Close)
 	return &integrationClient{baseURL: srv.URL, http: srv.Client()}
 }
