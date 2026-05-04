@@ -92,6 +92,7 @@ func (h *ParseHandler) handleText(w http.ResponseWriter, r *http.Request, req pa
 		UserMessage:  req.Content,
 		MaxTokens:    1024,
 		Tool:         ai.ParseBeanTool,
+		Phase:        "parse_text",
 	})
 	if err != nil {
 		slog.Error("AI completion failed", "error", err)
@@ -139,6 +140,7 @@ func (h *ParseHandler) handleImage(w http.ResponseWriter, r *http.Request) {
 		UserMessage:  "Extract the bean profile from this image of a coffee bag label.",
 		MaxTokens:    1024,
 		Tool:         ai.ParseBeanTool,
+		Phase:        "parse_image",
 	}, data, mediaType)
 	if err != nil {
 		slog.Error("AI vision completion failed", "error", err)
@@ -171,6 +173,16 @@ func (h *ParseHandler) enrichImageProfile(r *http.Request, imageResp *parsedAIRe
 		slog.Info("skipping web enrichment: no roaster name in image result")
 		return *imageResp, "image"
 	}
+	if imageProfileSufficient(&imageResp.Parsed) {
+		slog.InfoContext(r.Context(), "skipping web enrichment: image profile sufficient",
+			"roaster", *roasterName,
+			"process", derefStr(imageResp.Parsed.Process),
+			"roast_level", derefStr(imageResp.Parsed.RoastLevel),
+			"origin_country", derefStr(imageResp.Parsed.OriginCountry),
+		)
+		annotateParseSpan(r.Context(), attribute.Bool("parse.web_enrichment_skipped", true))
+		return *imageResp, "image"
+	}
 	hint := buildHint(&imageResp.Parsed)
 	slog.Info("starting web enrichment", "roaster", *roasterName, "hint", hint)
 
@@ -186,6 +198,7 @@ func (h *ParseHandler) enrichImageProfile(r *http.Request, imageResp *parsedAIRe
 		UserMessage:  webText,
 		MaxTokens:    1024,
 		Tool:         ai.ParseBeanTool,
+		Phase:        "parse_web_reparse",
 	})
 	if err != nil {
 		slog.Warn("web re-parse failed, using image-only result", "error", err)
@@ -212,6 +225,31 @@ func derefStr(s *string) string {
 		return "<nil>"
 	}
 	return *s
+}
+
+// imageProfileSufficient reports whether the image parse already extracted
+// enough high-weight fields that a web-enrichment LLM call adds little value.
+// Field weights mirror api/internal/brew/confidence.go: roast_level=5,
+// process=4, altitude_m=4, origin_country=3.
+//
+// Threshold: 3-of-4 high-weight fields populated. A typical specialty bag with
+// roast + process + country printed will skip enrichment; a sparse one (only
+// roaster name visible) still triggers it.
+func imageProfileSufficient(p *models.ParsedBean) bool {
+	have := 0
+	if p.RoastLevel != nil {
+		have++
+	}
+	if p.Process != nil {
+		have++
+	}
+	if p.AltitudeM != nil {
+		have++
+	}
+	if p.OriginCountry != nil {
+		have++
+	}
+	return have >= 3
 }
 
 func buildHint(p *models.ParsedBean) string {
@@ -358,6 +396,7 @@ func (h *ParseHandler) handleURL(w http.ResponseWriter, r *http.Request, req par
 		UserMessage:  text,
 		MaxTokens:    1024,
 		Tool:         ai.ParseBeanTool,
+		Phase:        "parse_url",
 	})
 	if err != nil {
 		slog.Error("AI completion failed for URL", "error", err)

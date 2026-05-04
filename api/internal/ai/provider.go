@@ -19,6 +19,7 @@ type CompletionRequest struct {
 	Tool          Tool
 	SystemPrompt  string
 	UserMessage   string
+	Phase         string // call-site label for token attribution (e.g. "parse_text", "brew_annotate")
 	MaxTokens     int
 	Deterministic bool // if true, sets temperature=0 for reproducible output
 }

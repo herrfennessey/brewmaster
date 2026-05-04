@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type DragEvent, type ClipboardEvent, type FormEvent } from 'react'
+import { useState, useRef, useEffect, type DragEvent, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { parseBeanAPI, parseImageAPI, parseURLAPI, generateParametersAPI } from '../services/api'
 import { saveBeanProfile, saveBrewParameters } from '../services/storage'
@@ -78,6 +78,25 @@ export default function Home() {
     return () => { if (previewSrc) URL.revokeObjectURL(previewSrc) }
   }, [previewSrc])
 
+  // Document-level paste listener so cmd/ctrl-V works the moment the image tab
+  // is open — without forcing the user to click the drop-zone first (which
+  // opens the file picker and steals the paste).
+  useEffect(() => {
+    if (activeTab !== 'image') return
+    function onDocPaste(e: globalThis.ClipboardEvent) {
+      const item = Array.from(e.clipboardData?.items ?? []).find(i => i.type.startsWith('image/'))
+      if (!item) return
+      const f = item.getAsFile()
+      if (!f) return
+      e.preventDefault()
+      setFile(f)
+      setPreviewSrc(URL.createObjectURL(f))
+      setError(null)
+    }
+    document.addEventListener('paste', onDocPaste)
+    return () => document.removeEventListener('paste', onDocPaste)
+  }, [activeTab])
+
   function pickFile(f: File) {
     setFile(f)
     setPreviewSrc(URL.createObjectURL(f))
@@ -88,13 +107,6 @@ export default function Home() {
     e.preventDefault()
     setDragOver(false)
     const f = e.dataTransfer.files[0]
-    if (f) pickFile(f)
-  }
-
-  function handlePaste(e: ClipboardEvent<HTMLDivElement>) {
-    const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
-    if (!item) return
-    const f = item.getAsFile()
     if (f) pickFile(f)
   }
 
@@ -198,7 +210,6 @@ export default function Home() {
                 onDragOver={e => { e.preventDefault(); setDragOver(true) }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleDrop}
-                onPaste={handlePaste}
                 tabIndex={0}
                 role="button"
                 aria-label="Upload bag photo"

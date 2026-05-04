@@ -2,6 +2,7 @@ package brew
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/herrfennessey/brewmaster/api/internal/models"
@@ -234,5 +235,15 @@ func collectRules(rules ...RuleID) []RuleID {
 }
 
 func pv(value, lo, hi float64) models.ParameterValue {
-	return models.ParameterValue{Value: value, Range: [2]float64{lo, hi}}
+	return models.ParameterValue{
+		Value: round1(value),
+		Range: [2]float64{round1(lo), round1(hi)},
+	}
+}
+
+// round1 rounds to one decimal place. IEEE 754 binary math turns clean inputs
+// like 18.5 * 2.4 into 44.400000000000006; round1 keeps the JSON response and
+// span attributes clean without relying on every consumer to format correctly.
+func round1(v float64) float64 {
+	return math.Round(v*10) / 10
 }

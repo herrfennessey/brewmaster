@@ -106,6 +106,7 @@ func (h *BrewHandler) annotate(r *http.Request, req *generateParamsRequest, comp
 		MaxTokens:     400,
 		Tool:          ai.BrewAnnotateTool,
 		Deterministic: true,
+		Phase:         "brew_annotate",
 	})
 	if err != nil {
 		slog.Error("brew annotation failed, using fallback", "error", err)
