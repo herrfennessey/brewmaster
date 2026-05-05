@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/PuerkitoBio/goquery v1.12.0
 	github.com/google/uuid v1.6.0
-	github.com/openai/openai-go/v3 v3.32.0
+	github.com/openai/openai-go/v3 v3.34.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.43.0
