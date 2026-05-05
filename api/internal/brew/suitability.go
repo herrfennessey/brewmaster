@@ -19,12 +19,12 @@ var suitabilityReasons = map[RuleID]string{
 	RuleAnaerobicLatte:   "Anaerobic fermentation character is buried under milk in a latte.",
 	RuleAnaerobicMedMilk: "Anaerobic fermentation aromatics are lost in medium-milk espresso drinks.",
 	RuleLightLatte:       "Light roast delicacy disappears completely in high milk volume.",
-	RuleDarkPourover:     "Dark roast bitterness is amplified in pourover without espresso pressure to balance it.",
+	RuleDarkPourover:     "Dark roast is already very soluble; pourover's long contact time over-extracts it into bitterness with no pressure-driven cutoff.",
 	// Suboptimal
 	RuleLightMedMilk:         "Light roast character is significantly diminished with medium milk volume.",
 	RuleEastAfricanLatte:     "Ethiopian and Kenyan brightness and acidity — the whole point — are masked by milk.",
 	RuleSL28MedHighMilk:      "SL28's signature sharp acidity does not integrate with milk; can taste sour.",
-	RuleNaturalAnaeroCortado: "Natural or anaerobic character loses nuance even in low-milk drinks vs straight.",
+	RuleNaturalAnaeroCortado: "Anaerobic fermentation character loses nuance even in low-milk drinks compared to straight espresso.",
 	RuleDarkCafeAuLait:       "Dark roast in cafe au lait is drinkable but heavy and flat.",
 	// Ideal
 	RuleMilkOriginDarkRoast:    "Chocolate and caramel body of this origin cuts through milk cleanly for a classic milk espresso.",
@@ -100,19 +100,33 @@ func checkSuboptimalRules(bean *CanonicalBean, drink string) (RuleID, bool) {
 	if bean.RoastLevel == "light" && isMediumMilk(drink) {
 		return RuleLightMedMilk, true
 	}
-	if eastAfricanOrigins[bean.OriginCountry] && isHighMilk(drink) {
+	// East African brightness only conflicts with milk while the roast is still
+	// light enough to preserve it; dark-roasted Ethiopian Sidamo in a latte is a
+	// classic, defensible pairing.
+	if eastAfricanOrigins[bean.OriginCountry] && isLightishRoast(bean.RoastLevel) && isHighMilk(drink) {
 		return RuleEastAfricanLatte, true
 	}
-	if bean.Varietal == "sl28" && (isMediumMilk(drink) || isHighMilk(drink)) {
+	// SL28's sharp blackcurrant acidity comes from washed processing; pulped
+	// natural / honey SL28 integrates with milk just fine.
+	if bean.Varietal == "sl28" && bean.Process == "washed" && (isMediumMilk(drink) || isHighMilk(drink)) {
 		return RuleSL28MedHighMilk, true
 	}
-	if (bean.Process == "natural" || isAnaerobicLike(bean)) && isLowMilk(drink) {
+	// Only anaerobic / loud-fermentation lots lose nuance in low-milk drinks;
+	// regular naturals (Brazil, Ethiopia sun-dried) work fine in cortados.
+	if isAnaerobicLike(bean) && isLowMilk(drink) {
 		return RuleNaturalAnaeroCortado, true
 	}
 	if bean.RoastLevel == "dark" && drink == "cafe au lait" {
 		return RuleDarkCafeAuLait, true
 	}
 	return "", false
+}
+
+// isLightishRoast covers explicit light, medium-light, and medium roasts —
+// the ones where origin character is still front-and-center. Dark and unknown
+// are excluded.
+func isLightishRoast(roast string) bool {
+	return roast == "light" || roast == "medium-light" || roast == "medium"
 }
 
 func checkIdealRules(bean *CanonicalBean, drink string) (RuleID, bool) {

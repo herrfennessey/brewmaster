@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -66,7 +67,7 @@ func (h *BrewHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	canonical := brew.Normalize(&req.BeanProfile.Parsed)
-	computed := brew.ComputeParams(&canonical, req.ExtractionMethod, req.DrinkType)
+	computed := brew.ComputeParams(&canonical, req.ExtractionMethod, req.DrinkType, time.Now().UTC())
 	suit := brew.ComputeSuitability(&canonical, req.DrinkType)
 	conf := brew.ComputeConfidence(&canonical)
 
