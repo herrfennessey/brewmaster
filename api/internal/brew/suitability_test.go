@@ -126,6 +126,18 @@ func TestSuitability_HoneyMediumLatte_Ideal(t *testing.T) {
 	assertSuitability(t, r, "ideal", brew.RuleHoneyMediumMilk)
 }
 
+func TestSuitability_HoneyMediumLightFlatWhite_Ideal(t *testing.T) {
+	bean := brew.CanonicalBean{Process: "honey", RoastLevel: "medium-light"}
+	r := brew.ComputeSuitability(&bean, "flat white")
+	assertSuitability(t, r, "ideal", brew.RuleHoneyMediumMilk)
+}
+
+func TestSuitability_WashedMediumLightEspresso_Ideal(t *testing.T) {
+	bean := brew.CanonicalBean{Process: "washed", OriginCountry: "colombia", RoastLevel: "medium-light"}
+	r := brew.ComputeSuitability(&bean, "espresso")
+	assertSuitability(t, r, "ideal", brew.RuleWashedLightBlack)
+}
+
 func TestSuitability_WetHulledFlatWhite_Ideal(t *testing.T) {
 	bean := brew.CanonicalBean{Process: "wet-hulled", RoastLevel: "medium"}
 	r := brew.ComputeSuitability(&bean, "flat white")

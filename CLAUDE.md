@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Brewmaster is a PWA espresso assistant that takes coffee bean info (text, image, or URL) and returns AI-generated brew parameters. Go backend + React TypeScript frontend, deployed on Google Cloud Run. AI is **OpenAI only** — no Anthropic, no provider factory.
+Brewmaster is a PWA espresso assistant that takes coffee bean info (text, image, or URL) and returns brew parameters. Parameters come from a **deterministic rule engine** (`internal/brew/`) using specialty-coffee domain knowledge; the LLM is used only to extract structured bean data from messy input and to write a prose explanation of the computed parameters. Go backend + React TypeScript frontend, deployed on Google Cloud Run. AI is **OpenAI only** — no Anthropic, no provider factory.
 
 ## Development Commands
 
@@ -45,6 +45,12 @@ Copy `.envrc.example` to `.envrc` and source it (or use direnv). Required vars: 
   - `Complete` — Chat Completions with forced tool call (structured JSON output)
   - `CompleteWithImage` — vision call with base64 image + forced tool call
   - `FindRoasterContent` — Responses API with `web_search` tool; returns synthesised plain text
+- `internal/brew/` — **deterministic** rule engine that turns a parsed bean into brew parameters, suitability, and confidence. The LLM never touches the numbers; it only annotates them in prose. Files:
+  - `normalize.go` — `ParsedBean → CanonicalBean` (lowercase, alias resolution, roast tri-state, roast-date parsing)
+  - `calculator.go` — `ComputeParams(bean, method, drink, now) → ComputedParams`. Roast-primary temperature model with altitude / varietal / process / freshness as small additive deltas, clamped to [86°C, 96°C]
+  - `suitability.go` — `ComputeSuitability(bean, drink) → SuitabilityResult` (poor → suboptimal → ideal → suitable rule cascade)
+  - `confidence.go` — weighted bean-profile completeness score
+  - `rules.go` — `RuleID` constants and `RulesetVersion` (currently `v2`); bump the version whenever you change rule semantics so telemetry stays interpretable
 - `internal/models/types.go` — shared data types (Go structs match TypeScript interfaces 1:1)
 
 **AI provider**: `OpenAIProvider` in `internal/ai/openai.go`. Uses `github.com/openai/openai-go/v3`. Model from `AI_MODEL` env — never hardcode or change model names. Do not add AnthropicProvider or a provider factory.
@@ -76,6 +82,7 @@ GCP project: `the-coffee-brewmaster`. Cloud Run SA: `brewmaster-api@the-coffee-b
 - **Static embedding** — `api/static/` is populated by the PWA build; never commit generated files there.
 - **US spelling** — misspell linter uses locale:US. Use `flavor` not `flavour` everywhere.
 - **Model selection** — never modify `AI_MODEL` env var references or model name constants; the user manages model selection.
+- **Deterministic brew engine** — `internal/brew/` must stay deterministic. The LLM may annotate but must never produce or override numeric parameters, suitability, or confidence. When changing rule semantics, bump `RulesetVersion` in `internal/brew/rules.go`.
 
 ## Implementation Status
 

@@ -140,7 +140,9 @@ func checkIdealMilkRules(bean *CanonicalBean, drink string) (RuleID, bool) {
 	if milkFriendlyOrigins[bean.OriginCountry] && bean.RoastLevel == "dark" && isAnyMilk(drink) {
 		return RuleMilkOriginDarkRoast, true
 	}
-	if bean.Process == "honey" && bean.RoastLevel == "medium" && isAnyMilk(drink) {
+	// Honey-process retains enough body and sweetness at both medium and
+	// medium-light to synergize with milk; light is too delicate.
+	if bean.Process == "honey" && (bean.RoastLevel == "medium" || bean.RoastLevel == "medium-light") && isAnyMilk(drink) {
 		return RuleHoneyMediumMilk, true
 	}
 	if bean.Process == "wet-hulled" && (isMediumMilk(drink) || isHighMilk(drink)) {
@@ -155,8 +157,7 @@ func checkIdealBlackRules(bean *CanonicalBean, drink string) (RuleID, bool) {
 	if bean.Process == "washed" && eastAfricanOrigins[bean.OriginCountry] && (drink == "espresso" || drink == "americano") {
 		return RuleWashedEastAfricanBlack, true
 	}
-	isLightOrMed := bean.RoastLevel == "light" || bean.RoastLevel == "medium"
-	if bean.Process == "washed" && isLightOrMed && (drink == "black" || drink == "espresso") {
+	if bean.Process == "washed" && isLightishRoast(bean.RoastLevel) && (drink == "black" || drink == "espresso") {
 		return RuleWashedLightBlack, true
 	}
 	return "", false

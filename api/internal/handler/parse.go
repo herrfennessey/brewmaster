@@ -235,18 +235,23 @@ func derefStr(s *string) string {
 // Threshold: 3-of-4 high-weight fields populated. A typical specialty bag with
 // roast + process + country printed will skip enrichment; a sparse one (only
 // roaster name visible) still triggers it.
+//
+// We require values to be meaningfully populated, not just non-nil. The vision
+// model can return an empty string or zero altitude when it sees a field it
+// can't read confidently — counting those as "present" would skip enrichment
+// even though the data is effectively missing.
 func imageProfileSufficient(p *models.ParsedBean) bool {
 	have := 0
-	if p.RoastLevel != nil {
+	if p.RoastLevel != nil && strings.TrimSpace(*p.RoastLevel) != "" {
 		have++
 	}
-	if p.Process != nil {
+	if p.Process != nil && strings.TrimSpace(*p.Process) != "" {
 		have++
 	}
-	if p.AltitudeM != nil {
+	if p.AltitudeM != nil && *p.AltitudeM > 0 {
 		have++
 	}
-	if p.OriginCountry != nil {
+	if p.OriginCountry != nil && strings.TrimSpace(*p.OriginCountry) != "" {
 		have++
 	}
 	return have >= 3
