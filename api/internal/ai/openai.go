@@ -70,6 +70,10 @@ func setUsageAttrs(span trace.Span, usage *openai.CompletionUsage) {
 		attribute.Int64("tokens_in", usage.PromptTokens),
 		attribute.Int64("tokens_out", usage.CompletionTokens),
 		attribute.Int64("tokens_total", usage.TotalTokens),
+		// gpt-5.x reasoning models burn invisible "thinking" tokens that count
+		// toward CompletionTokens — surface them so high tokens_out is explainable.
+		attribute.Int64("tokens_reasoning", usage.CompletionTokensDetails.ReasoningTokens),
+		attribute.Int64("tokens_cached", usage.PromptTokensDetails.CachedTokens),
 	)
 }
 
@@ -80,6 +84,7 @@ func (p *OpenAIProvider) CompleteWithImage(ctx context.Context, req *CompletionR
 	if span != nil {
 		span.SetAttributes(
 			attribute.String("ai.provider", "openai"),
+			attribute.String("ai.phase", req.Phase),
 			attribute.String("ai.model", p.model),
 			attribute.String("ai.tool.name", req.Tool.Name),
 			attribute.Bool("ai.deterministic", req.Deterministic),
@@ -128,9 +133,21 @@ func (p *OpenAIProvider) CompleteWithImage(ctx context.Context, req *CompletionR
 		return "", fmt.Errorf("openai vision completion failed: %w", err)
 	}
 	setUsageAttrs(span, &resp.Usage)
-	slog.InfoContext(ctx, "openai vision completion",
-		"tool", req.Tool.Name, "duration_ms", dur.Milliseconds(),
-		"tokens_in", resp.Usage.PromptTokens, "tokens_out", resp.Usage.CompletionTokens)
+	slog.InfoContext(ctx, "LLM call",
+		"phase", req.Phase,
+		"kind", "vision",
+		"model", p.model,
+		"tool", req.Tool.Name,
+		"system_chars", len(req.SystemPrompt),
+		"user_chars", len(req.UserMessage),
+		"image_bytes", len(imageData),
+		"tokens_in", resp.Usage.PromptTokens,
+		"tokens_cached", resp.Usage.PromptTokensDetails.CachedTokens,
+		"tokens_out", resp.Usage.CompletionTokens,
+		"tokens_reasoning", resp.Usage.CompletionTokensDetails.ReasoningTokens,
+		"tokens_total", resp.Usage.TotalTokens,
+		"duration_ms", dur.Milliseconds(),
+	)
 	if len(resp.Choices) == 0 || len(resp.Choices[0].Message.ToolCalls) == 0 {
 		err = fmt.Errorf("openai returned no tool calls")
 		return "", err
@@ -145,6 +162,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req *CompletionRequest) (
 	if span != nil {
 		span.SetAttributes(
 			attribute.String("ai.provider", "openai"),
+			attribute.String("ai.phase", req.Phase),
 			attribute.String("ai.model", p.model),
 			attribute.String("ai.tool.name", req.Tool.Name),
 			attribute.Bool("ai.deterministic", req.Deterministic),
@@ -188,9 +206,20 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req *CompletionRequest) (
 		return "", fmt.Errorf("openai completion failed: %w", err)
 	}
 	setUsageAttrs(span, &resp.Usage)
-	slog.InfoContext(ctx, "openai completion",
-		"tool", req.Tool.Name, "duration_ms", dur.Milliseconds(),
-		"tokens_in", resp.Usage.PromptTokens, "tokens_out", resp.Usage.CompletionTokens)
+	slog.InfoContext(ctx, "LLM call",
+		"phase", req.Phase,
+		"kind", "chat",
+		"model", p.model,
+		"tool", req.Tool.Name,
+		"system_chars", len(req.SystemPrompt),
+		"user_chars", len(req.UserMessage),
+		"tokens_in", resp.Usage.PromptTokens,
+		"tokens_cached", resp.Usage.PromptTokensDetails.CachedTokens,
+		"tokens_out", resp.Usage.CompletionTokens,
+		"tokens_reasoning", resp.Usage.CompletionTokensDetails.ReasoningTokens,
+		"tokens_total", resp.Usage.TotalTokens,
+		"duration_ms", dur.Milliseconds(),
+	)
 	if len(resp.Choices) == 0 || len(resp.Choices[0].Message.ToolCalls) == 0 {
 		err = fmt.Errorf("openai returned no tool calls")
 		return "", err
@@ -206,10 +235,12 @@ func (p *OpenAIProvider) FindRoasterContent(ctx context.Context, roasterName, hi
 	if span != nil {
 		span.SetAttributes(
 			attribute.String("ai.provider", "openai"),
+			attribute.String("ai.phase", "parse_web_search"),
 			attribute.String("ai.model", p.model),
 			attribute.String("ai.tool.name", "web_search"),
 			attribute.String("ai.roaster_name", roasterName),
 			attribute.Bool("ai.has_hint", hint != ""),
+			attribute.String("ai.search_context_size", "low"),
 		)
 	}
 
@@ -224,7 +255,12 @@ func (p *OpenAIProvider) FindRoasterContent(ctx context.Context, roasterName, hi
 		Model: p.model,
 		Input: responses.ResponseNewParamsInputUnion{OfString: param.NewOpt(query)},
 		Tools: []responses.ToolUnionParam{
-			responses.ToolParamOfWebSearch(responses.WebSearchToolTypeWebSearch),
+			// "low" cuts how much page content the model pulls into context vs.
+			// the default "medium" — URL picking + synthesis quality stays.
+			{OfWebSearch: &responses.WebSearchToolParam{
+				Type:              responses.WebSearchToolTypeWebSearch,
+				SearchContextSize: responses.WebSearchToolSearchContextSizeLow,
+			}},
 		},
 	})
 	dur := time.Since(start)
@@ -240,13 +276,25 @@ func (p *OpenAIProvider) FindRoasterContent(ctx context.Context, roasterName, hi
 			attribute.Int64("tokens_in", resp.Usage.InputTokens),
 			attribute.Int64("tokens_out", resp.Usage.OutputTokens),
 			attribute.Int64("tokens_total", resp.Usage.TotalTokens),
+			attribute.Int64("tokens_cached", resp.Usage.InputTokensDetails.CachedTokens),
+			attribute.Int64("tokens_reasoning", resp.Usage.OutputTokensDetails.ReasoningTokens),
 			attribute.Int("ai.output.length", len(text)),
 		)
 	}
-	slog.InfoContext(ctx, "openai web search",
+	slog.InfoContext(ctx, "LLM call",
+		"phase", "parse_web_search",
+		"kind", "web_search",
+		"model", p.model,
+		"roaster", roasterName,
+		"query_chars", len(query),
+		"output_chars", len(text),
+		"tokens_in", resp.Usage.InputTokens,
+		"tokens_cached", resp.Usage.InputTokensDetails.CachedTokens,
+		"tokens_out", resp.Usage.OutputTokens,
+		"tokens_reasoning", resp.Usage.OutputTokensDetails.ReasoningTokens,
+		"tokens_total", resp.Usage.TotalTokens,
 		"duration_ms", dur.Milliseconds(),
-		"tokens_in", resp.Usage.InputTokens, "tokens_out", resp.Usage.OutputTokens,
-		"output_chars", len(text))
+	)
 	if text == "" {
 		err = fmt.Errorf("web search returned no content")
 		return "", err

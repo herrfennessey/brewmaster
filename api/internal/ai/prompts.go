@@ -36,7 +36,7 @@ var ParseBeanTool = Tool{
 					"altitude_confidence": map[string]any{"type": []string{"string", "null"}, "enum": []any{"exact", "range", "estimated", nil}},
 					"varietal":            map[string]any{"type": []string{"string", "null"}},
 					"process":             map[string]any{"type": []string{"string", "null"}, "enum": []any{"natural", "washed", "honey", "wet-hulled", "anaerobic", "other", nil}},
-					"roast_level":         map[string]any{"type": []string{"string", "null"}, "enum": []any{"light", "medium", "dark", nil}},
+					"roast_level":         map[string]any{"type": []string{"string", "null"}, "enum": []any{"light", "medium-light", "medium", "dark", nil}},
 					"roast_date":          map[string]any{"type": []string{"string", "null"}},
 					"roaster_name":        map[string]any{"type": []string{"string", "null"}},
 					"flavor_notes":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},

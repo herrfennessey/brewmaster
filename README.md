@@ -1,14 +1,18 @@
 # Brewmaster
 
-A PWA espresso assistant. Give it a coffee bag — as text, a photo, or a roaster URL — and it returns dialed-in brew parameters using specialty coffee domain knowledge (SCA standards, process/altitude/varietal logic).
+A PWA espresso assistant. Give it a coffee bag — as text, a photo, or a roaster URL — and it returns dialed-in brew parameters using specialty coffee domain knowledge (roast level, altitude, varietal density, process, and freshness all factor in).
 
 ## How it works
 
 1. **Input** — paste bag label text, upload a photo (drag-and-drop or paste from clipboard), or paste a roaster product URL
-2. **Parse** — AI extracts origin, varietal, process, altitude, roast level, and flavor notes
+2. **Parse** — AI extracts origin, varietal, process, altitude, roast level, roast date, and flavor notes
 3. **Enrich** — if a roaster name is recognised, the web is searched for the product page and any missing fields are filled in automatically
 4. **Review** — confirm or edit the parsed fields before proceeding
-5. **Brew parameters** — AI generates dose, yield, ratio, temperature, time, and pre-infusion with confidence ranges and reasoning
+5. **Brew parameters** — a deterministic rule engine computes dose, yield, ratio, temperature, time, and pre-infusion with confidence ranges. The LLM provides a short prose explanation but does not touch the numbers.
+
+## Brew engine
+
+The parameter calculation lives in `api/internal/brew/` and is fully deterministic — same input, same output. The temperature model is roast-primary (light ~94°C, medium-light ~93°C, medium ~92°C, dark ~90°C for espresso; +1°C for pourover) with small additive deltas for altitude, varietal density, process, and freshness. Output is clamped to the operating envelope (86–96°C) so adjustments can't compound out of range. Suitability for milk drinks is evaluated separately against a rule cascade. The current ruleset is `v2`.
 
 ## Stack
 
@@ -51,6 +55,7 @@ Required env vars: `OPENAI_API_KEY`, `AI_PROVIDER=openai`, `AI_MODEL`.
 api/          Go backend
   internal/
     ai/       Provider interface + OpenAI implementation (chat + vision + web search)
+    brew/     Deterministic rule engine (parameter calculation, suitability, confidence)
     handler/  HTTP handlers (parse-bean, generate-parameters, health)
     models/   Shared data types
     router/   Route registration + SPA fallback
