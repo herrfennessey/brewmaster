@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -13,6 +12,8 @@ import (
 
 	"github.com/herrfennessey/brewmaster/api/internal/ai"
 )
+
+const roastDateLayout = "2006-01-02"
 
 // ParseRoastDateHandler handles POST /api/parse-roast-date requests. It exists
 // so the user can answer the post-parse "when were these roasted?" prompt in
@@ -36,8 +37,6 @@ type parseRoastDateResponse struct {
 	Reasoning string  `json:"reasoning"`
 }
 
-var isoDateRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-
 func (h *ParseRoastDateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4*1024)
 	var req parseRoastDateRequest
@@ -51,10 +50,10 @@ func (h *ParseRoastDateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 	annotateParseSpan(r.Context(),
-		attribute.String("parse_roast_date.input.length", fmt.Sprintf("%d", len(text))),
+		attribute.Int("parse_roast_date.input.length", len(text)),
 	)
 
-	today := time.Now().UTC().Format("2006-01-02")
+	today := time.Now().UTC().Format(roastDateLayout)
 	raw, err := h.provider.Complete(r.Context(), &ai.CompletionRequest{
 		SystemPrompt:  ai.ParseRoastDatePrompt,
 		UserMessage:   fmt.Sprintf("Today's date: %s\n\nUser input: %s", today, text),
@@ -76,19 +75,28 @@ func (h *ParseRoastDateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Defense in depth: the schema asks for ISO format, but reject anything that
-	// doesn't match before it reaches the rule engine's date parser.
-	if resp.RoastDate != nil && !isoDateRe.MatchString(*resp.RoastDate) {
-		slog.Warn("AI returned non-ISO roast date, dropping", "raw", *resp.RoastDate)
-		resp.RoastDate = nil
+	// The schema asks for ISO format, but the model can still produce malformed
+	// strings under certain prompts. Reject here using the same parser the rule
+	// engine relies on (brew.Normalize), so what we return is guaranteed valid
+	// upstream.
+	if resp.RoastDate != nil {
+		if _, err := time.Parse(roastDateLayout, *resp.RoastDate); err != nil {
+			slog.Warn("AI returned non-ISO roast date, dropping", "raw", *resp.RoastDate, "error", err)
+			resp.RoastDate = nil
+			// Stale reasoning at this point would claim a date was extracted; the
+			// client renders it as the failure message, so replace it.
+			resp.Reasoning = "I couldn't read a clear roast date from that — try a different phrasing or skip."
+		}
 	}
 
 	annotateParseSpan(r.Context(),
 		attribute.Bool("parse_roast_date.resolved", resp.RoastDate != nil),
 	)
+	// Reasoning is the model's free-text rationale and can echo user input, so
+	// keep it out of structured logs. The "resolved" boolean is enough for
+	// telemetry; the full reasoning still goes back to the client.
 	slog.InfoContext(r.Context(), "roast date parsed",
 		"resolved", resp.RoastDate != nil,
-		"reasoning", resp.Reasoning,
 	)
 	writeJSON(w, http.StatusOK, resp)
 }

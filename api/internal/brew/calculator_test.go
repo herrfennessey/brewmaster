@@ -126,9 +126,8 @@ func TestCalc_Espresso_FreshBean_LongerPreinfusion(t *testing.T) {
 }
 
 func TestCalc_Espresso_NoRoastDate_SurfacesUnknownRule(t *testing.T) {
-	// No roast date provided — informational rule fires but no numeric change
-	// vs. the same bean without the rule. Lets the LLM annotation prompt
-	// surface degassing guidance without changing the deterministic numbers.
+	// Informational rule fires but params stay equal to the no-rule case;
+	// guards against accidentally adding numeric deltas to the unknown branch.
 	bean := brew.CanonicalBean{RoastLevel: "medium", Process: "washed"}
 	cp := compute(bean, "espresso", "espresso")
 

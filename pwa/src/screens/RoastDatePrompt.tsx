@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { generateParametersAPI, parseRoastDateAPI } from '../services/api'
 import { getBeanById, saveBeanProfile, saveBrewParameters } from '../services/storage'
@@ -14,7 +14,7 @@ export default function RoastDatePrompt() {
   const method: ExtractionMethod = handoff?.method ?? 'espresso'
   const drink: DrinkType = handoff?.drink ?? (method === 'pourover' ? 'black' : 'espresso')
 
-  const bean = getBeanById(beanId ?? '')
+  const bean = useMemo(() => getBeanById(beanId ?? ''), [beanId])
   const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<'parsing' | 'brewing' | null>(null)
@@ -85,7 +85,7 @@ export default function RoastDatePrompt() {
       <Link to="/" className="roast-date-back">← Start over</Link>
 
       <div>
-        <h2 className="roast-date-heading">When were these beans roasted?</h2>
+        <h2 id="roast-date-heading" className="roast-date-heading">When were these beans roasted?</h2>
         <p className="roast-date-sub">Roast date is a major factor — fresh beans need extra preinfusion to degas, older beans benefit from a small temperature bump.</p>
       </div>
 
@@ -95,6 +95,7 @@ export default function RoastDatePrompt() {
           value={text}
           onChange={e => setText(e.target.value)}
           placeholder="e.g. April 15, 2 weeks ago, expires Aug 2026"
+          aria-labelledby="roast-date-heading"
           autoFocus
           disabled={busy !== null}
         />
