@@ -816,3 +816,113 @@ a:hover { color: var(--text-1); }
 }
 .review-submit:hover:not(:disabled) { background: var(--amber-2); }
 .review-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Roast-date prompt ────────────────────────────────────── */
+.roast-date-screen {
+  padding-top: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.roast-date-back {
+  font-size: 0.8rem;
+  color: var(--text-2);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.12s;
+}
+.roast-date-back:hover { color: var(--text-1); }
+
+.roast-date-heading {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: -0.01em;
+}
+
+.roast-date-sub {
+  font-size: 0.85rem;
+  color: var(--text-2);
+  line-height: 1.55;
+  margin-top: 0.5rem;
+}
+
+.roast-date-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.roast-date-input {
+  width: 100%;
+  padding: 11px 13px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-1);
+  font-family: var(--font), sans-serif;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.roast-date-input::placeholder { color: var(--text-3); }
+.roast-date-input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 2px var(--amber-dim);
+}
+
+.roast-date-submit {
+  width: 100%;
+  padding: 10px;
+  background: var(--amber);
+  color: #0C0A08;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font), sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.roast-date-submit:hover:not(:disabled) { background: var(--amber-2); }
+.roast-date-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.roast-date-tip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--amber);
+  border-radius: var(--radius-sm);
+  padding: 11px 13px;
+  font-size: 0.82rem;
+  color: var(--text-2);
+  line-height: 1.55;
+}
+.roast-date-tip strong {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.roast-date-error {
+  font-size: 0.82rem;
+  color: #C06050;
+}
+
+.roast-date-skip {
+  align-self: center;
+  background: none;
+  border: none;
+  color: var(--text-2);
+  font-family: var(--font), sans-serif;
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 6px 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border-2);
+  transition: color 0.12s;
+}
+.roast-date-skip:hover:not(:disabled) { color: var(--text-1); }
+.roast-date-skip:disabled { opacity: 0.4; cursor: not-allowed; }

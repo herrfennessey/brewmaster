@@ -67,6 +67,11 @@ const (
 	RuleRoastStale    RuleID = "v2.roast_stale_boost"
 	RuleRoastPostPeak RuleID = "v2.roast_post_peak"
 
+	// Surfaces general degassing guidance when the user could not provide a
+	// roast date (most bag photos hide it; some bags only print expiration).
+	// Informational only — does not change parameters.
+	RuleRoastDateUnknown RuleID = "v2.roast_date_unknown"
+
 	// Surfaces the medium-light default applied when roast level is missing,
 	// since most specialty roasters do not publish a roast level.
 	RuleUnknownRoastMediumLightDefault RuleID = "v2.unknown_roast_default_medium_light"
