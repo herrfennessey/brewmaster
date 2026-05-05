@@ -131,8 +131,19 @@ export default function Home() {
       }
 
       saveBeanProfile(bean)
-      setPhase('brewing')
 
+      // Roast date is a major brew-parameter input but rarely visible on bag
+      // photos and often missing from product pages. Detour through a prompt
+      // when it's missing so the user can supply it (or skip and get general
+      // degassing advice via RuleRoastDateUnknown).
+      if (!bean.parsed.roast_date) {
+        navigate(`/roast-date/${bean.id}`, {
+          state: { method: extractionMethod, drink: drinkType },
+        })
+        return
+      }
+
+      setPhase('brewing')
       const params = await generateParametersAPI(bean, extractionMethod, drinkType)
       saveBrewParameters(params)
       navigate(`/brew/${bean.id}`)

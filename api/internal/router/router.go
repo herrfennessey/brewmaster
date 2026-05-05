@@ -25,6 +25,7 @@ func New(provider ai.Provider, tracerProvider trace.TracerProvider) http.Handler
 
 	// AI endpoints
 	mux.Handle("POST /api/parse-bean", handler.NewParseHandler(provider))
+	mux.Handle("POST /api/parse-roast-date", handler.NewParseRoastDateHandler(provider))
 	mux.Handle("POST /api/generate-parameters", handler.NewBrewHandler(provider))
 
 	// Serve the React PWA from ./static if it has been built.

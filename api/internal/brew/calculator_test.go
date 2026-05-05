@@ -125,6 +125,31 @@ func TestCalc_Espresso_FreshBean_LongerPreinfusion(t *testing.T) {
 	assertRulesContain(t, cp.AppliedRules, brew.RuleRoastFresh)
 }
 
+func TestCalc_Espresso_NoRoastDate_SurfacesUnknownRule(t *testing.T) {
+	// No roast date provided — informational rule fires but no numeric change
+	// vs. the same bean without the rule. Lets the LLM annotation prompt
+	// surface degassing guidance without changing the deterministic numbers.
+	bean := brew.CanonicalBean{RoastLevel: "medium", Process: "washed"}
+	cp := compute(bean, "espresso", "espresso")
+
+	assertApprox(t, "temp", cp.Params.TempC.Value, 92.0)
+	assertApprox(t, "time", cp.Params.TimeS.Value, 30.0)
+	assertRulesContain(t, cp.AppliedRules, brew.RuleRoastDateUnknown)
+}
+
+func TestCalc_Espresso_KnownRoastDate_NoUnknownRule(t *testing.T) {
+	// When a roast date is present, the unknown rule must not fire.
+	roastDate := fixedNow.AddDate(0, 0, -14)
+	bean := brew.CanonicalBean{RoastLevel: "medium", RoastDate: &roastDate}
+	cp := compute(bean, "espresso", "espresso")
+
+	for _, r := range cp.AppliedRules {
+		if r == brew.RuleRoastDateUnknown {
+			t.Errorf("known roast date should not surface unknown rule, got %v", cp.AppliedRules)
+		}
+	}
+}
+
 func TestCalc_Espresso_PostPeak_FlagOnly(t *testing.T) {
 	// Roasted 45 days ago → post-peak: rule fires but no numeric change.
 	roastDate := fixedNow.AddDate(0, 0, -45)
@@ -222,6 +247,7 @@ func TestCalc_FallbackReasoning_NewRulesHavePhrases(t *testing.T) {
 		brew.RuleRoastFresh,
 		brew.RuleRoastStale,
 		brew.RuleRoastPostPeak,
+		brew.RuleRoastDateUnknown,
 		brew.RuleUnknownRoastMediumLightDefault,
 	}
 	for _, r := range newRules {

@@ -69,6 +69,7 @@ func FallbackReasoning(rules []RuleID) string {
 		RuleRoastFresh:                     "very fresh beans are still degassing, so preinfusion is extended",
 		RuleRoastStale:                     "older beans get a small temperature and time bump to extract what aromatics remain",
 		RuleRoastPostPeak:                  "beans are past peak freshness; flavors may be flattening",
+		RuleRoastDateUnknown:               "roast date wasn't provided — light roasts typically peak 7–14 days post-roast, darker roasts within 3–4 weeks; if the bag shows a 'best before' date, subtract ~12 months for the actual roast date or check the roaster's website",
 		RuleUnknownRoastMediumLightDefault: "no roast level provided; assuming medium-light, the population mean for unlabelled specialty coffee",
 	}
 	var parts []string
@@ -352,7 +353,7 @@ func drinkRatioDelta(drink string) (float64, RuleID) {
 // surfaces a flag without changing numbers.
 func roastDateAdj(daysSinceRoast int, known bool) roastDateAdjustments {
 	if !known {
-		return roastDateAdjustments{}
+		return roastDateAdjustments{Rule: RuleRoastDateUnknown}
 	}
 	switch {
 	case daysSinceRoast < 5:

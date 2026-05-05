@@ -56,6 +56,36 @@ var ParseBeanTool = Tool{
 	},
 }
 
+// ParseRoastDatePrompt is the system prompt for the parse-roast-date endpoint.
+// The user types something freeform after being asked when their beans were
+// roasted; this prompt converts whatever they wrote into an ISO date or null.
+const ParseRoastDatePrompt = `You convert freeform text into an ISO 8601 (YYYY-MM-DD) roast date.
+
+The user message contains today's date (use it for relative dates) followed by their input. The input may be:
+- An explicit date: "April 15", "2025-04-15", "Apr 15 2025" → convert to YYYY-MM-DD.
+- A relative date: "2 weeks ago", "last Friday", "yesterday" → resolve against today's date.
+- An expiration / "best before" date: "expires Aug 2026", "BB Sep 2025", "best before 09/2025". Specialty roasters typically use a 12-month shelf life, so subtract 12 months from the expiration date to estimate the roast date. If the user mentions a different shelf life, use that instead.
+- Ambiguous, contradictory, or non-date text → return null for roast_date.
+
+When you must guess (month-only, expiration date), pick the 1st of the month. When you return a date, fill reasoning with one short sentence explaining what you inferred (e.g. "expiration Aug 2026 minus 12 months → Aug 2025"). When you return null, fill reasoning with a brief explanation of why.`
+
+// ParseRoastDateTool is the tool definition forcing structured output for
+// parse-roast-date. Both fields are required so the handler can rely on them
+// without nil-checking the reasoning string separately.
+var ParseRoastDateTool = Tool{
+	Name:        "extract_roast_date",
+	Description: "Extract an ISO 8601 roast date from freeform user text.",
+	Schema: map[string]any{
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"roast_date", "reasoning"},
+		"properties": map[string]any{
+			"roast_date": map[string]any{"type": []string{"string", "null"}},
+			"reasoning":  map[string]any{"type": "string", "maxLength": 200},
+		},
+	},
+}
+
 // BrewAnnotatePrompt is the system prompt for the annotation-only LLM call in
 // the generate-parameters endpoint. All numeric parameters, suitability, and
 // confidence are already computed deterministically by the rules engine before

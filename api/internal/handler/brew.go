@@ -193,7 +193,7 @@ func buildBrewAnnotateMessage(req *generateParamsRequest, computed *brew.Compute
 		panic("brewmaster: marshal BeanProfile.Parsed: " + err.Error())
 	}
 	p := computed.Params
-	return fmt.Sprintf(
+	msg := fmt.Sprintf(
 		"Extraction: %s\nDrink: %s\n\nBean profile:\n%s\n\nComputed parameters:\nDose %.1fg | Yield %.1fg | Ratio %s\nTemp %.1f°C | Time %.0fs | Bloom/Preinfusion %.0fs\n\nSuitability: %s — %s\nConfidence: %s\nRules applied: %v",
 		req.ExtractionMethod, req.DrinkType,
 		string(beanJSON),
@@ -203,4 +203,17 @@ func buildBrewAnnotateMessage(req *generateParamsRequest, computed *brew.Compute
 		conf.Level,
 		computed.AppliedRules,
 	)
+	if hasRule(computed.AppliedRules, brew.RuleRoastDateUnknown) {
+		msg += "\n\nNote: the user did not provide a roast date. In your reasoning, briefly mention the typical degassing window for this roast level (light: 7–14d post-roast; medium: 5–10d; dark: 3–7d, used within ~4 weeks) and that some roasters print only a 'best before' date — typically 12 months after roast — so the actual roast date may need to be inferred or looked up on the roaster's website."
+	}
+	return msg
+}
+
+func hasRule(rules []brew.RuleID, target brew.RuleID) bool {
+	for _, r := range rules {
+		if r == target {
+			return true
+		}
+	}
+	return false
 }
