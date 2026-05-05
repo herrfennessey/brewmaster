@@ -34,6 +34,15 @@ export function parseURLAPI(url: string): Promise<BeanProfile> {
   return postJSON<BeanProfile>('/api/parse-bean', { input_type: 'url', content: url })
 }
 
+export interface ParseRoastDateResult {
+  roast_date: string | null
+  reasoning: string
+}
+
+export function parseRoastDateAPI(text: string): Promise<ParseRoastDateResult> {
+  return postJSON<ParseRoastDateResult>('/api/parse-roast-date', { text })
+}
+
 export function generateParametersAPI(
   bean: BeanProfile,
   extractionMethod: ExtractionMethod = 'espresso',
