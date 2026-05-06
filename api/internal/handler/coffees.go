@@ -13,6 +13,18 @@ import (
 	"github.com/herrfennessey/brewmaster/api/internal/store"
 )
 
+// requireUID extracts the authenticated uid set by auth.Middleware. The
+// middleware always populates it on protected routes, so a miss here means
+// the route was wired without auth — fail closed.
+func requireUID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	uid, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing user context")
+		return "", false
+	}
+	return uid, true
+}
+
 // CoffeesHandler exposes user-scoped coffee CRUD on top of the storage repo.
 type CoffeesHandler struct {
 	repo store.Repo
@@ -45,9 +57,8 @@ type upsertResponse struct {
 
 // Upsert creates or merges a coffee record from a parsed bean.
 func (h *CoffeesHandler) Upsert(w http.ResponseWriter, r *http.Request) {
-	uid, ok := auth.UserIDFromContext(r.Context())
+	uid, ok := requireUID(w, r)
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "missing user context")
 		return
 	}
 
@@ -90,9 +101,8 @@ type listResponse struct {
 
 // List returns the user's coffees, newest activity first.
 func (h *CoffeesHandler) List(w http.ResponseWriter, r *http.Request) {
-	uid, ok := auth.UserIDFromContext(r.Context())
+	uid, ok := requireUID(w, r)
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "missing user context")
 		return
 	}
 	coffees, err := h.repo.ListCoffees(r.Context(), uid)
@@ -106,9 +116,8 @@ func (h *CoffeesHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Get returns one coffee by id (which is its canonical key).
 func (h *CoffeesHandler) Get(w http.ResponseWriter, r *http.Request) {
-	uid, ok := auth.UserIDFromContext(r.Context())
+	uid, ok := requireUID(w, r)
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "missing user context")
 		return
 	}
 	id := r.PathValue("id")
@@ -136,9 +145,8 @@ type patchRequest struct {
 
 // Patch updates rating and/or notes on a coffee.
 func (h *CoffeesHandler) Patch(w http.ResponseWriter, r *http.Request) {
-	uid, ok := auth.UserIDFromContext(r.Context())
+	uid, ok := requireUID(w, r)
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "missing user context")
 		return
 	}
 	id := r.PathValue("id")
@@ -172,16 +180,14 @@ func (h *CoffeesHandler) Patch(w http.ResponseWriter, r *http.Request) {
 
 type lookupResponse struct {
 	Coffee *store.CoffeeSummary `json:"coffee"`
-	Found  bool                 `json:"found"`
 }
 
 // Lookup is the post-parse re-recognition probe. The client passes the
 // canonical key returned by parse-bean; if a saved coffee matches, the client
 // can route directly to it instead of running through review.
 func (h *CoffeesHandler) Lookup(w http.ResponseWriter, r *http.Request) {
-	uid, ok := auth.UserIDFromContext(r.Context())
+	uid, ok := requireUID(w, r)
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "missing user context")
 		return
 	}
 	key := r.URL.Query().Get("key")
@@ -195,7 +201,7 @@ func (h *CoffeesHandler) Lookup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to look up coffee")
 		return
 	}
-	resp := lookupResponse{Found: found}
+	resp := lookupResponse{}
 	if found {
 		resp.Coffee = &c
 	}

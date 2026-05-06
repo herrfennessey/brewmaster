@@ -124,8 +124,8 @@ export function patchCoffeeAPI(
   return patchJSON<Coffee>(`/api/coffees/${encodeURIComponent(id)}`, patch)
 }
 
-export function lookupCoffeeAPI(canonicalKey: string): Promise<{ found: boolean; coffee: CoffeeSummary | null }> {
-  return getJSON<{ found: boolean; coffee: CoffeeSummary | null }>(
+export function lookupCoffeeAPI(canonicalKey: string): Promise<{ coffee: CoffeeSummary | null }> {
+  return getJSON<{ coffee: CoffeeSummary | null }>(
     `/api/coffees/lookup?key=${encodeURIComponent(canonicalKey)}`,
     true,
   )

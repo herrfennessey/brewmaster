@@ -56,22 +56,23 @@ func (r *FirestoreRepo) UpsertCoffee(
 	now time.Time,
 ) (Coffee, bool, error) {
 	docRef := r.coffees(uid).Doc(canonicalKey)
-	var (
-		result  Coffee
-		created bool
-	)
 
+	// Try the create-first path: first save of a new bag is one round trip.
+	fresh := newCoffee(canonicalKey, in, now)
+	if _, err := docRef.Create(ctx, fresh); err == nil {
+		return fresh, true, nil
+	} else if status.Code(err) != codes.AlreadyExists {
+		return Coffee{}, false, fmt.Errorf("create coffee: %w", err)
+	}
+
+	// Existing coffee — append the new bag inside a transaction so the read
+	// and write of Bags don't race with another upsert.
+	var result Coffee
 	err := r.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
 		snap, err := tx.Get(docRef)
-		switch {
-		case status.Code(err) == codes.NotFound:
-			result = newCoffee(canonicalKey, in, now)
-			created = true
-			return tx.Set(docRef, result) //nolint:wrapcheck
-		case err != nil:
+		if err != nil {
 			return fmt.Errorf("get coffee: %w", err)
 		}
-
 		var existing Coffee
 		if err := snap.DataTo(&existing); err != nil {
 			return fmt.Errorf("decode coffee: %w", err)
@@ -86,7 +87,7 @@ func (r *FirestoreRepo) UpsertCoffee(
 	if err != nil {
 		return Coffee{}, false, fmt.Errorf("upsert coffee: %w", err)
 	}
-	return result, created, nil
+	return result, false, nil
 }
 
 // ListCoffees returns the user's saved coffees ordered by last_seen_at desc.
@@ -129,6 +130,9 @@ func (r *FirestoreRepo) GetCoffee(ctx context.Context, uid, coffeeID string) (Co
 }
 
 // PatchCoffee mutates rating and/or notes. Other fields are immutable here.
+// Uses field-level updates so the (potentially large) Coffee doc isn't
+// rewritten on every star click, and so concurrent rating + notes edits
+// don't fight.
 func (r *FirestoreRepo) PatchCoffee(
 	ctx context.Context,
 	uid, coffeeID string,
@@ -136,31 +140,22 @@ func (r *FirestoreRepo) PatchCoffee(
 	now time.Time,
 ) (Coffee, error) {
 	docRef := r.coffees(uid).Doc(coffeeID)
-	var result Coffee
-	err := r.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
-		snap, err := tx.Get(docRef)
+
+	updates := []firestore.Update{{Path: "last_seen_at", Value: now}}
+	if patch.Rating != nil {
+		updates = append(updates, firestore.Update{Path: "rating", Value: *patch.Rating})
+	}
+	if patch.Notes != nil {
+		updates = append(updates, firestore.Update{Path: "notes", Value: *patch.Notes})
+	}
+
+	if _, err := docRef.Update(ctx, updates); err != nil {
 		if status.Code(err) == codes.NotFound {
-			return ErrNotFound
-		}
-		if err != nil {
-			return fmt.Errorf("get coffee: %w", err)
-		}
-		var c Coffee
-		if err := snap.DataTo(&c); err != nil {
-			return fmt.Errorf("decode coffee: %w", err)
-		}
-		applyPatch(&c, patch)
-		c.LastSeenAt = now
-		result = c
-		return tx.Set(docRef, c) //nolint:wrapcheck
-	})
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
 			return Coffee{}, ErrNotFound
 		}
-		return Coffee{}, fmt.Errorf("patch coffee: %w", err)
+		return Coffee{}, fmt.Errorf("update coffee: %w", err)
 	}
-	return result, nil
+	return r.GetCoffee(ctx, uid, coffeeID)
 }
 
 // LookupByKey checks whether a user already has a coffee for the given key.

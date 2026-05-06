@@ -35,15 +35,16 @@ export default function CoffeeDetail() {
   const [saving, setSaving] = useState(false)
   const [notesDraft, setNotesDraft] = useState('')
 
+  const uid = user?.uid
   useEffect(() => {
-    if (authLoading || !user || !id) return
+    if (authLoading || !uid || !id) return
     getCoffeeAPI(id)
       .then(c => {
         setCoffee(c)
         setNotesDraft(c.notes ?? '')
       })
       .catch(err => setError(err instanceof Error ? err.message : 'Failed to load'))
-  }, [id, user, authLoading])
+  }, [id, uid, authLoading])
 
   async function applyPatch(patch: { rating?: number; notes?: string }) {
     if (!id) return
@@ -79,7 +80,9 @@ export default function CoffeeDetail() {
       <div className="coffee-detail__header">
         <div className="coffee-detail__roaster">{parsed.roaster_name ?? 'Unknown roaster'}</div>
         <h1 className="coffee-detail__title">
-          {parsed.producer ?? [parsed.origin_region, parsed.origin_country].filter(Boolean).join(', ') ?? 'Bean'}
+          {parsed.producer
+            || [parsed.origin_region, parsed.origin_country].filter(Boolean).join(', ')
+            || 'Bean'}
         </h1>
         {subtitle && <div className="coffee-detail__meta">{subtitle}</div>}
       </div>

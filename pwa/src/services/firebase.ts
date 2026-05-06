@@ -28,9 +28,17 @@ export const firebaseAuth = app ? getAuth(app) : null
 // on this so every device has a stable Firebase UID from first load — it lets
 // users save coffees and brew sessions without a sign-in wall, and a later
 // link-with-Google preserves all that data under the same UID.
-export async function ensureAnonymous(): Promise<void> {
-  if (!firebaseAuth || firebaseAuth.currentUser) return
-  await signInAnonymously(firebaseAuth)
+//
+// React 19 strict-mode double-invokes mount effects, so the in-flight promise
+// is cached at module scope to coalesce concurrent calls into one network trip.
+let anonInflight: Promise<void> | null = null
+export function ensureAnonymous(): Promise<void> {
+  if (!firebaseAuth || firebaseAuth.currentUser) return Promise.resolve()
+  if (anonInflight) return anonInflight
+  anonInflight = signInAnonymously(firebaseAuth)
+    .then(() => undefined)
+    .finally(() => { anonInflight = null })
+  return anonInflight
 }
 
 // upgradeToGoogle promotes the current user. When the user is anonymous we

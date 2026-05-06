@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getBrewParamsForBean, getBeanById } from '../services/storage'
 import { upsertCoffeeAPI } from '../services/api'
@@ -46,6 +46,11 @@ export default function BrewParameters() {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const navigate = useNavigate()
+  const navTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (navTimer.current) clearTimeout(navTimer.current)
+  }, [])
 
   async function saveToMyCoffees() {
     if (!bean) return
@@ -55,7 +60,9 @@ export default function BrewParameters() {
       const res = await upsertCoffeeAPI(bean)
       setSaveState('saved')
       setSaveMsg(res.is_new ? 'Saved to my coffees.' : 'Updated existing coffee.')
-      setTimeout(() => navigate(`/coffees/${encodeURIComponent(res.coffee_id)}`), 600)
+      navTimer.current = setTimeout(() => {
+        navigate(`/coffees/${encodeURIComponent(res.coffee_id)}`)
+      }, 600)
     } catch (err) {
       setSaveState('error')
       setSaveMsg(err instanceof Error ? err.message : 'Failed to save')

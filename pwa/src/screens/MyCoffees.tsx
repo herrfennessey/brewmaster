@@ -28,12 +28,15 @@ export default function MyCoffees() {
   const [coffees, setCoffees] = useState<CoffeeSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Depend on user.uid (stable) instead of the User object, which Firebase
+  // replaces on every silent token refresh — re-firing this effect hourly.
+  const uid = user?.uid
   useEffect(() => {
-    if (authLoading || !user) return
+    if (authLoading || !uid) return
     listCoffeesAPI()
       .then(r => setCoffees(r.coffees))
       .catch(err => setError(err instanceof Error ? err.message : 'Failed to load'))
-  }, [user, authLoading])
+  }, [uid, authLoading])
 
   if (authLoading || coffees === null) {
     return (

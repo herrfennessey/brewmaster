@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth, authBackendConfigured } from '../services/auth-context'
 
 export default function SignIn() {
@@ -24,10 +24,8 @@ export default function SignIn() {
     )
   }
 
-  // Already a real (non-anonymous) account — nothing to do.
   if (user && !isAnonymous) {
-    navigate(next, { replace: true })
-    return null
+    return <Navigate to={next} replace />
   }
 
   async function handleSignIn() {

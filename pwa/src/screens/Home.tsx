@@ -139,9 +139,9 @@ export default function Home() {
       // Works for anonymous users too — they get their own Firestore UID.
       if (bean.canonical_key) {
         try {
-          const found = await lookupCoffeeAPI(bean.canonical_key)
-          if (found.found && found.coffee) {
-            navigate(`/coffees/${encodeURIComponent(found.coffee.coffee_id)}`)
+          const { coffee } = await lookupCoffeeAPI(bean.canonical_key)
+          if (coffee) {
+            navigate(`/coffees/${encodeURIComponent(coffee.coffee_id)}`)
             return
           }
         } catch {
