@@ -6,18 +6,21 @@ import (
 	"os"
 	"strings"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-
 	"github.com/herrfennessey/brewmaster/api/internal/ai"
+	"github.com/herrfennessey/brewmaster/api/internal/auth"
 	"github.com/herrfennessey/brewmaster/api/internal/handler"
+	"github.com/herrfennessey/brewmaster/api/internal/store"
 )
 
 // New creates and returns the HTTP router with all routes configured.
 // If tracerProvider is non-nil, all routes are wrapped with otelhttp middleware
-// for automatic request tracing.
-func New(provider ai.Provider, tracerProvider trace.TracerProvider) http.Handler {
+// for automatic request tracing. repo may be nil — protected routes only
+// register when storage is wired up. verifier may also be nil; in that case
+// the auth middleware short-circuits to LocalDevUserID.
+func New(provider ai.Provider, repo store.Repo, verifier auth.Verifier, tracerProvider trace.TracerProvider) http.Handler {
 	mux := http.NewServeMux()
 
 	// Public health check
@@ -27,6 +30,17 @@ func New(provider ai.Provider, tracerProvider trace.TracerProvider) http.Handler
 	mux.Handle("POST /api/parse-bean", handler.NewParseHandler(provider))
 	mux.Handle("POST /api/parse-roast-date", handler.NewParseRoastDateHandler(provider))
 	mux.Handle("POST /api/generate-parameters", handler.NewBrewHandler(provider))
+
+	// Protected user-scoped endpoints
+	if repo != nil {
+		coffees := handler.NewCoffeesHandler(repo)
+		requireAuth := auth.Middleware(verifier)
+		mux.Handle("POST /api/coffees/upsert", requireAuth(http.HandlerFunc(coffees.Upsert)))
+		mux.Handle("GET /api/coffees", requireAuth(http.HandlerFunc(coffees.List)))
+		mux.Handle("GET /api/coffees/lookup", requireAuth(http.HandlerFunc(coffees.Lookup)))
+		mux.Handle("GET /api/coffees/{id}", requireAuth(http.HandlerFunc(coffees.Get)))
+		mux.Handle("PATCH /api/coffees/{id}", requireAuth(http.HandlerFunc(coffees.Patch)))
+	}
 
 	// Serve the React PWA from ./static if it has been built.
 	// Falls back to the health handler when running without a built frontend

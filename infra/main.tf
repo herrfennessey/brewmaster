@@ -67,6 +67,24 @@ resource "google_project_service" "cloudresourcemanager" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "firestore" {
+  project            = var.project_id
+  service            = "firestore.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "firebase" {
+  project            = var.project_id
+  service            = "firebase.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "identitytoolkit" {
+  project            = var.project_id
+  service            = "identitytoolkit.googleapis.com"
+  disable_on_destroy = false
+}
+
 # =============================================================================
 # Artifact Registry
 # =============================================================================
@@ -96,6 +114,13 @@ resource "google_service_account" "cloud_run_sa" {
 resource "google_project_iam_member" "cloud_run_secret_accessor" {
   project = var.project_id
   role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${google_service_account.cloud_run_sa.email}"
+}
+
+# Allow Cloud Run SA to read/write Firestore documents.
+resource "google_project_iam_member" "cloud_run_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
   member  = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
 
@@ -234,6 +259,32 @@ resource "google_project_iam_member" "github_actions_wif_admin" {
   project = var.project_id
   role    = "roles/iam.workloadIdentityPoolAdmin"
   member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+# Manage Firestore database lifecycle from Terraform.
+resource "google_project_iam_member" "github_actions_datastore_owner" {
+  project = var.project_id
+  role    = "roles/datastore.owner"
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+# =============================================================================
+# Firestore (Native mode) — single per-project database for user data.
+# Document layout lives in api/internal/store/. The default Firestore
+# database is named "(default)" by GCP convention.
+# =============================================================================
+
+resource "google_firestore_database" "default" {
+  project                           = var.project_id
+  name                              = "(default)"
+  location_id                       = var.region
+  type                              = "FIRESTORE_NATIVE"
+  concurrency_mode                  = "OPTIMISTIC"
+  app_engine_integration_mode       = "DISABLED"
+  point_in_time_recovery_enablement = "POINT_IN_TIME_RECOVERY_DISABLED"
+  delete_protection_state           = "DELETE_PROTECTION_ENABLED"
+
+  depends_on = [google_project_service.firestore]
 }
 
 # Terraform state bucket access.

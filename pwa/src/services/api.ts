@@ -1,16 +1,48 @@
-import type { BeanProfile, BrewParameters, DrinkType, ExtractionMethod } from '../types'
+import type {
+  BeanProfile, BrewParameters, Coffee, CoffeeSummary, DrinkType, ExtractionMethod,
+} from '../types'
 
-async function postJSON<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+// Token getter is wired up by App once Firebase is initialized. Decoupling it
+// from this module keeps api.ts independent of React.
+let getIdToken: () => Promise<string | null> = async () => null
+
+export function setIdTokenGetter(fn: () => Promise<string | null>) {
+  getIdToken = fn
+}
+
+async function authedHeaders(extra?: Record<string, string>): Promise<Record<string, string>> {
+  const token = await getIdToken()
+  const headers: Record<string, string> = { ...(extra ?? {}) }
+  if (token) headers.Authorization = `Bearer ${token}`
+  return headers
+}
+
+async function unwrap<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error((err as { error?: string }).error ?? res.statusText)
   }
   return res.json() as Promise<T>
+}
+
+async function postJSON<T>(path: string, body: unknown, authed = false): Promise<T> {
+  const headers = authed
+    ? await authedHeaders({ 'Content-Type': 'application/json' })
+    : { 'Content-Type': 'application/json' }
+  const res = await fetch(path, { method: 'POST', headers, body: JSON.stringify(body) })
+  return unwrap<T>(res)
+}
+
+async function patchJSON<T>(path: string, body: unknown): Promise<T> {
+  const headers = await authedHeaders({ 'Content-Type': 'application/json' })
+  const res = await fetch(path, { method: 'PATCH', headers, body: JSON.stringify(body) })
+  return unwrap<T>(res)
+}
+
+async function getJSON<T>(path: string, authed = false): Promise<T> {
+  const headers = authed ? await authedHeaders() : undefined
+  const res = await fetch(path, { headers })
+  return unwrap<T>(res)
 }
 
 export function parseBeanAPI(content: string): Promise<BeanProfile> {
@@ -21,13 +53,7 @@ export function parseImageAPI(file: File): Promise<BeanProfile> {
   const form = new FormData()
   form.append('input_type', 'image')
   form.append('file', file)
-  return fetch('/api/parse-bean', { method: 'POST', body: form }).then(async res => {
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: res.statusText }))
-      throw new Error((err as { error?: string }).error ?? res.statusText)
-    }
-    return res.json() as Promise<BeanProfile>
-  })
+  return fetch('/api/parse-bean', { method: 'POST', body: form }).then(res => unwrap<BeanProfile>(res))
 }
 
 export function parseURLAPI(url: string): Promise<BeanProfile> {
@@ -48,13 +74,59 @@ export function generateParametersAPI(
   extractionMethod: ExtractionMethod = 'espresso',
   drinkType?: DrinkType,
 ): Promise<BrewParameters> {
-  // Default the drink to one that's actually valid for the chosen method, so a
-  // caller passing only a method (e.g. 'pourover') doesn't end up sending an
-  // incompatible combination like pourover + espresso.
   const drink: DrinkType = drinkType ?? (extractionMethod === 'pourover' ? 'black' : 'espresso')
   return postJSON<BrewParameters>('/api/generate-parameters', {
     bean_profile: bean,
     extraction_method: extractionMethod,
     drink_type: drink,
   })
+}
+
+// =============================================================================
+// User-scoped coffees (require auth)
+// =============================================================================
+
+export interface UpsertCoffeeResponse {
+  coffee_id: string
+  canonical_key: string
+  is_new: boolean
+  coffee: Coffee
+}
+
+export function upsertCoffeeAPI(
+  bean: BeanProfile,
+  opts?: { rating?: number; notes?: string; roastDate?: string },
+): Promise<UpsertCoffeeResponse> {
+  return postJSON<UpsertCoffeeResponse>(
+    '/api/coffees/upsert',
+    {
+      bean_profile: bean,
+      bag: { roast_date: opts?.roastDate ?? bean.parsed.roast_date ?? '' },
+      rating: opts?.rating,
+      notes: opts?.notes,
+    },
+    true,
+  )
+}
+
+export function listCoffeesAPI(): Promise<{ coffees: CoffeeSummary[] }> {
+  return getJSON<{ coffees: CoffeeSummary[] }>('/api/coffees', true)
+}
+
+export function getCoffeeAPI(id: string): Promise<Coffee> {
+  return getJSON<Coffee>(`/api/coffees/${encodeURIComponent(id)}`, true)
+}
+
+export function patchCoffeeAPI(
+  id: string,
+  patch: { rating?: number; notes?: string },
+): Promise<Coffee> {
+  return patchJSON<Coffee>(`/api/coffees/${encodeURIComponent(id)}`, patch)
+}
+
+export function lookupCoffeeAPI(canonicalKey: string): Promise<{ found: boolean; coffee: CoffeeSummary | null }> {
+  return getJSON<{ found: boolean; coffee: CoffeeSummary | null }>(
+    `/api/coffees/lookup?key=${encodeURIComponent(canonicalKey)}`,
+    true,
+  )
 }

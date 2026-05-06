@@ -67,7 +67,7 @@ func newIntegrationServer(t *testing.T) *integrationClient {
 	if err != nil {
 		t.Fatalf("create AI provider: %v", err)
 	}
-	srv := httptest.NewServer(router.New(provider, nil))
+	srv := httptest.NewServer(router.New(provider, nil, nil, nil))
 	t.Cleanup(srv.Close)
 	return &integrationClient{baseURL: srv.URL, http: srv.Client()}
 }

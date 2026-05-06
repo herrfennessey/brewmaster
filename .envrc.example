@@ -11,8 +11,22 @@ export OPENAI_API_KEY=sk-proj-...
 # GCP project (used when running gcloud commands locally)
 export GCP_PROJECT_ID=the-coffee-brewmaster
 
-# Disable auth for local development (no Firebase needed)
+# Disable auth for local development (no Firebase token verification).
+# When unset/false, the API verifies a Firebase ID token and rejects
+# unauthenticated /api/coffees/* requests.
 export DISABLE_AUTH=true
+
+# Firestore emulator (optional, for fully local dev without touching prod data).
+# Start it with: gcloud emulators firestore start --host-port=127.0.0.1:8085
+# Then export this so the firestore client picks it up:
+# export FIRESTORE_EMULATOR_HOST=127.0.0.1:8085
+
+# Frontend Firebase web config — non-secret. Required for the production build
+# to wire up Google sign-in. Leave unset for DISABLE_AUTH dev mode.
+# export VITE_FIREBASE_API_KEY=
+# export VITE_FIREBASE_AUTH_DOMAIN=the-coffee-brewmaster.firebaseapp.com
+# export VITE_FIREBASE_PROJECT_ID=the-coffee-brewmaster
+# export VITE_FIREBASE_APP_ID=
 
 # Telemetry (Axiom EU) — optional. When AXIOM_API_TOKEN is empty, traces and
 # metrics are silently disabled. Set TELEMETRY_ENABLED=false to disable even

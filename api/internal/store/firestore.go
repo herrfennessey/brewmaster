@@ -1,0 +1,228 @@
+package store
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"cloud.google.com/go/firestore"
+	"google.golang.org/api/iterator"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"github.com/google/uuid"
+)
+
+// ErrNotFound is returned when a requested document does not exist.
+var ErrNotFound = errors.New("store: not found")
+
+// Repo is the storage interface used by handlers. The Firestore implementation
+// is in this package; tests can substitute a fake.
+type Repo interface {
+	UpsertCoffee(ctx context.Context, uid, canonicalKey string, in *UpsertInput, now time.Time) (Coffee, bool, error)
+	ListCoffees(ctx context.Context, uid string) ([]CoffeeSummary, error)
+	GetCoffee(ctx context.Context, uid, coffeeID string) (Coffee, error)
+	PatchCoffee(ctx context.Context, uid, coffeeID string, patch PatchInput, now time.Time) (Coffee, error)
+	LookupByKey(ctx context.Context, uid, canonicalKey string) (CoffeeSummary, bool, error)
+}
+
+// FirestoreRepo persists coffees in Firestore. The collection layout is:
+//
+//	users/{uid}/coffees/{coffeeId}
+//
+// where coffeeId is the canonical key (deterministic) so dedupe is a Get,
+// not a query.
+type FirestoreRepo struct {
+	client *firestore.Client
+}
+
+// NewFirestoreRepo wraps an initialized Firestore client.
+func NewFirestoreRepo(client *firestore.Client) *FirestoreRepo {
+	return &FirestoreRepo{client: client}
+}
+
+func (r *FirestoreRepo) coffees(uid string) *firestore.CollectionRef {
+	return r.client.Collection("users").Doc(uid).Collection("coffees")
+}
+
+// UpsertCoffee creates a new coffee or appends a fresh bag to an existing one.
+// Returns the resulting Coffee and a flag indicating whether it was newly
+// created (true) or merged into an existing record (false).
+func (r *FirestoreRepo) UpsertCoffee(
+	ctx context.Context,
+	uid, canonicalKey string,
+	in *UpsertInput,
+	now time.Time,
+) (Coffee, bool, error) {
+	docRef := r.coffees(uid).Doc(canonicalKey)
+	var (
+		result  Coffee
+		created bool
+	)
+
+	err := r.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		snap, err := tx.Get(docRef)
+		switch {
+		case status.Code(err) == codes.NotFound:
+			result = newCoffee(canonicalKey, in, now)
+			created = true
+			return tx.Set(docRef, result) //nolint:wrapcheck
+		case err != nil:
+			return fmt.Errorf("get coffee: %w", err)
+		}
+
+		var existing Coffee
+		if err := snap.DataTo(&existing); err != nil {
+			return fmt.Errorf("decode coffee: %w", err)
+		}
+		existing.Bags = append(existing.Bags, newBag(in, now))
+		existing.LastSeenAt = now
+		existing.BeanProfile = in.BeanProfile
+		applyPatch(&existing, PatchInput{Rating: in.Rating, Notes: in.Notes})
+		result = existing
+		return tx.Set(docRef, existing) //nolint:wrapcheck
+	})
+	if err != nil {
+		return Coffee{}, false, fmt.Errorf("upsert coffee: %w", err)
+	}
+	return result, created, nil
+}
+
+// ListCoffees returns the user's saved coffees ordered by last_seen_at desc.
+func (r *FirestoreRepo) ListCoffees(ctx context.Context, uid string) ([]CoffeeSummary, error) {
+	iter := r.coffees(uid).OrderBy("last_seen_at", firestore.Desc).Documents(ctx)
+	defer iter.Stop()
+
+	out := []CoffeeSummary{}
+	for {
+		snap, err := iter.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("iterate coffees: %w", err)
+		}
+		var c Coffee
+		if err := snap.DataTo(&c); err != nil {
+			return nil, fmt.Errorf("decode coffee: %w", err)
+		}
+		out = append(out, summary(snap.Ref.ID, &c))
+	}
+	return out, nil
+}
+
+// GetCoffee fetches one coffee by id.
+func (r *FirestoreRepo) GetCoffee(ctx context.Context, uid, coffeeID string) (Coffee, error) {
+	snap, err := r.coffees(uid).Doc(coffeeID).Get(ctx)
+	if status.Code(err) == codes.NotFound {
+		return Coffee{}, ErrNotFound
+	}
+	if err != nil {
+		return Coffee{}, fmt.Errorf("get coffee: %w", err)
+	}
+	var c Coffee
+	if err := snap.DataTo(&c); err != nil {
+		return Coffee{}, fmt.Errorf("decode coffee: %w", err)
+	}
+	return c, nil
+}
+
+// PatchCoffee mutates rating and/or notes. Other fields are immutable here.
+func (r *FirestoreRepo) PatchCoffee(
+	ctx context.Context,
+	uid, coffeeID string,
+	patch PatchInput,
+	now time.Time,
+) (Coffee, error) {
+	docRef := r.coffees(uid).Doc(coffeeID)
+	var result Coffee
+	err := r.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		snap, err := tx.Get(docRef)
+		if status.Code(err) == codes.NotFound {
+			return ErrNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("get coffee: %w", err)
+		}
+		var c Coffee
+		if err := snap.DataTo(&c); err != nil {
+			return fmt.Errorf("decode coffee: %w", err)
+		}
+		applyPatch(&c, patch)
+		c.LastSeenAt = now
+		result = c
+		return tx.Set(docRef, c) //nolint:wrapcheck
+	})
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Coffee{}, ErrNotFound
+		}
+		return Coffee{}, fmt.Errorf("patch coffee: %w", err)
+	}
+	return result, nil
+}
+
+// LookupByKey checks whether a user already has a coffee for the given key.
+func (r *FirestoreRepo) LookupByKey(ctx context.Context, uid, canonicalKey string) (CoffeeSummary, bool, error) {
+	snap, err := r.coffees(uid).Doc(canonicalKey).Get(ctx)
+	if status.Code(err) == codes.NotFound {
+		return CoffeeSummary{}, false, nil
+	}
+	if err != nil {
+		return CoffeeSummary{}, false, fmt.Errorf("lookup coffee: %w", err)
+	}
+	var c Coffee
+	if err := snap.DataTo(&c); err != nil {
+		return CoffeeSummary{}, false, fmt.Errorf("decode coffee: %w", err)
+	}
+	return summary(snap.Ref.ID, &c), true, nil
+}
+
+func newCoffee(key string, in *UpsertInput, now time.Time) Coffee {
+	c := Coffee{
+		CanonicalKey: key,
+		BeanProfile:  in.BeanProfile,
+		Bags:         []Bag{newBag(in, now)},
+		FirstSeenAt:  now,
+		LastSeenAt:   now,
+		SessionCount: 0,
+	}
+	applyPatch(&c, PatchInput{Rating: in.Rating, Notes: in.Notes})
+	return c
+}
+
+func newBag(in *UpsertInput, now time.Time) Bag {
+	bag := Bag{
+		BagID:      uuid.NewString(),
+		OpenedAt:   now,
+		SourceType: in.BeanProfile.SourceType,
+	}
+	if in.RoastDate != "" {
+		rd := in.RoastDate
+		bag.RoastDate = &rd
+	}
+	return bag
+}
+
+func applyPatch(c *Coffee, p PatchInput) {
+	if p.Rating != nil {
+		v := *p.Rating
+		c.Rating = &v
+	}
+	if p.Notes != nil {
+		v := *p.Notes
+		c.Notes = &v
+	}
+}
+
+func summary(id string, c *Coffee) CoffeeSummary {
+	return CoffeeSummary{
+		CoffeeID:     id,
+		CanonicalKey: c.CanonicalKey,
+		BeanProfile:  c.BeanProfile,
+		Rating:       c.Rating,
+		LastSeenAt:   c.LastSeenAt,
+		SessionCount: c.SessionCount,
+	}
+}

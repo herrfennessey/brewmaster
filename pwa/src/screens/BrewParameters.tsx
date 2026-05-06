@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getBrewParamsForBean, getBeanById } from '../services/storage'
+import { upsertCoffeeAPI } from '../services/api'
 import type { DrinkSuitability, DrinkType, ParameterValue } from '../types'
 import { DRINK_LABELS } from '../types'
 import ConfidenceBadge from '../components/ConfidenceBadge'
@@ -42,6 +43,24 @@ export default function BrewParameters() {
   const params = getBrewParamsForBean(beanId ?? '')
   const bean = getBeanById(beanId ?? '')
   const [showReasoning, setShowReasoning] = useState(false)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [saveMsg, setSaveMsg] = useState<string | null>(null)
+  const navigate = useNavigate()
+
+  async function saveToMyCoffees() {
+    if (!bean) return
+    setSaveState('saving')
+    setSaveMsg(null)
+    try {
+      const res = await upsertCoffeeAPI(bean)
+      setSaveState('saved')
+      setSaveMsg(res.is_new ? 'Saved to my coffees.' : 'Updated existing coffee.')
+      setTimeout(() => navigate(`/coffees/${encodeURIComponent(res.coffee_id)}`), 600)
+    } catch (err) {
+      setSaveState('error')
+      setSaveMsg(err instanceof Error ? err.message : 'Failed to save')
+    }
+  }
 
   if (!params) {
     return (
@@ -130,10 +149,24 @@ export default function BrewParameters() {
         <Link to={`/review/${params.bean_id}`} className="action-btn">
           Edit bean details
         </Link>
+        <button
+          type="button"
+          className="action-btn"
+          disabled={!bean?.canonical_key || saveState === 'saving' || saveState === 'saved'}
+          onClick={saveToMyCoffees}
+          title={bean?.canonical_key ? '' : 'Need roaster + bean to save'}
+        >
+          {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : 'Save to my coffees'}
+        </button>
         <Link to="/" className="action-btn action-btn--primary">
           New analysis →
         </Link>
       </div>
+      {saveMsg && (
+        <p className={saveState === 'error' ? 'foot-error' : 'foot-hint'} style={{ marginTop: '0.5rem' }}>
+          {saveMsg}
+        </p>
+      )}
     </div>
   )
 }
