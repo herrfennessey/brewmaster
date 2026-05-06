@@ -49,10 +49,9 @@ type upsertRequest struct {
 }
 
 type upsertResponse struct {
-	CoffeeID     string       `json:"coffee_id"`
-	CanonicalKey string       `json:"canonical_key"`
-	Coffee       store.Coffee `json:"coffee"`
-	IsNew        bool         `json:"is_new"`
+	CoffeeID string       `json:"coffee_id"`
+	Coffee   store.Coffee `json:"coffee"`
+	IsNew    bool         `json:"is_new"`
 }
 
 // maxNotesBytes caps server-side note storage. Without a cap the unbounded
@@ -95,7 +94,6 @@ func (h *CoffeesHandler) Upsert(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
-	coffeeID := brew.HashKey(key)
 
 	in := store.UpsertInput{
 		BeanProfile: req.BeanProfile,
@@ -103,17 +101,16 @@ func (h *CoffeesHandler) Upsert(w http.ResponseWriter, r *http.Request) {
 		Rating:      req.Rating,
 		Notes:       req.Notes,
 	}
-	coffee, created, err := h.repo.UpsertCoffee(r.Context(), uid, coffeeID, key, &in, h.now())
+	sum, coffee, created, err := h.repo.UpsertCoffee(r.Context(), uid, key, &in, h.now())
 	if err != nil {
 		slog.ErrorContext(r.Context(), "upsert coffee failed", "error", err, "uid", uid)
 		writeError(w, http.StatusInternalServerError, "failed to save coffee")
 		return
 	}
 	writeJSON(w, http.StatusOK, upsertResponse{
-		CoffeeID:     coffeeID,
-		CanonicalKey: key,
-		Coffee:       coffee,
-		IsNew:        created,
+		CoffeeID: sum.CoffeeID,
+		Coffee:   coffee,
+		IsNew:    created,
 	})
 }
 
@@ -232,7 +229,7 @@ func (h *CoffeesHandler) Lookup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing key parameter")
 		return
 	}
-	c, found, err := h.repo.LookupByID(r.Context(), uid, brew.HashKey(key))
+	c, found, err := h.repo.LookupBySlug(r.Context(), uid, key)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "lookup coffee failed", "error", err, "uid", uid)
 		writeError(w, http.StatusInternalServerError, "failed to look up coffee")

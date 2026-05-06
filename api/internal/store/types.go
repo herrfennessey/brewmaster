@@ -46,13 +46,13 @@ type BeanCard struct {
 }
 
 // CoffeeSummary is the trimmed shape returned by list endpoints. coffee_id
-// is the short hashed Firestore doc id used in URLs; canonical_key is the
-// long human-readable slug retained for traceability/debug.
+// is the short hashed Firestore doc id used in URLs. The full canonical key
+// (long roaster|bean|process slug) lives only inside the Coffee doc itself —
+// list responses don't need to ship it.
 type CoffeeSummary struct {
 	LastSeenAt   time.Time `json:"last_seen_at"`
 	Rating       *int      `json:"rating,omitempty"`
 	CoffeeID     string    `json:"coffee_id"`
-	CanonicalKey string    `json:"canonical_key"`
 	BeanCard     BeanCard  `json:"bean_card"`
 	SessionCount int       `json:"session_count"`
 }

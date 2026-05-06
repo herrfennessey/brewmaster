@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/herrfennessey/brewmaster/api/internal/brew"
 	"github.com/herrfennessey/brewmaster/api/internal/models"
 )
 
@@ -20,24 +21,24 @@ import (
 var ErrNotFound = errors.New("store: not found")
 
 // Repo is the storage interface used by handlers. The Firestore implementation
-// is in this package; tests can substitute a fake. coffeeID is a short hash
-// (see brew.HashKey) used as the Firestore doc id and the URL slug;
-// canonicalKey is the long human-readable roaster|bean|process slug that the
-// hash derives from, kept inside the doc for traceability.
+// is in this package; tests can substitute a fake. The store owns the mapping
+// from canonical-key (long roaster|bean|process slug) to coffeeID (short hash
+// from brew.HashKey), so handlers don't repeat the derivation.
 type Repo interface {
-	UpsertCoffee(ctx context.Context, uid, coffeeID, canonicalKey string, in *UpsertInput, now time.Time) (Coffee, bool, error)
+	UpsertCoffee(ctx context.Context, uid, canonicalKey string, in *UpsertInput, now time.Time) (CoffeeSummary, Coffee, bool, error)
 	ListCoffees(ctx context.Context, uid string) ([]CoffeeSummary, error)
 	GetCoffee(ctx context.Context, uid, coffeeID string) (Coffee, error)
 	PatchCoffee(ctx context.Context, uid, coffeeID string, patch PatchInput, now time.Time) (Coffee, error)
-	LookupByID(ctx context.Context, uid, coffeeID string) (CoffeeSummary, bool, error)
+	LookupBySlug(ctx context.Context, uid, canonicalKey string) (CoffeeSummary, bool, error)
 }
 
 // FirestoreRepo persists coffees in Firestore. The collection layout is:
 //
 //	users/{uid}/coffees/{coffeeId}
 //
-// where coffeeId is the canonical key (deterministic) so dedupe is a Get,
-// not a query.
+// where coffeeId is brew.HashKey(canonicalKey). The full canonicalKey lives
+// inside the document so it survives in backups even if the hash strategy
+// changes later.
 type FirestoreRepo struct {
 	client *firestore.Client
 }
@@ -52,22 +53,24 @@ func (r *FirestoreRepo) coffees(uid string) *firestore.CollectionRef {
 }
 
 // UpsertCoffee creates a new coffee or appends a fresh bag to an existing one.
-// Returns the resulting Coffee and a flag indicating whether it was newly
-// created (true) or merged into an existing record (false).
+// Returns a summary (with the derived coffee_id), the full coffee doc, and a
+// flag indicating whether it was newly created (true) or merged (false).
 func (r *FirestoreRepo) UpsertCoffee(
 	ctx context.Context,
-	uid, coffeeID, canonicalKey string,
+	uid, canonicalKey string,
 	in *UpsertInput,
 	now time.Time,
-) (Coffee, bool, error) {
+) (CoffeeSummary, Coffee, bool, error) {
+	coffeeID := brew.HashKey(canonicalKey)
 	docRef := r.coffees(uid).Doc(coffeeID)
 
 	// Try the create-first path: first save of a new bag is one round trip.
 	fresh := newCoffee(canonicalKey, in, now)
 	if _, err := docRef.Create(ctx, fresh); err == nil {
-		return fresh, true, nil
+		sum := summary(coffeeID, &fresh)
+		return sum, fresh, true, nil
 	} else if status.Code(err) != codes.AlreadyExists {
-		return Coffee{}, false, fmt.Errorf("create coffee: %w", err)
+		return CoffeeSummary{}, Coffee{}, false, fmt.Errorf("create coffee: %w", err)
 	}
 
 	// Existing coffee — append the new bag inside a transaction so the read
@@ -93,9 +96,10 @@ func (r *FirestoreRepo) UpsertCoffee(
 		return tx.Set(docRef, existing) //nolint:wrapcheck
 	})
 	if err != nil {
-		return Coffee{}, false, fmt.Errorf("upsert coffee: %w", err)
+		return CoffeeSummary{}, Coffee{}, false, fmt.Errorf("upsert coffee: %w", err)
 	}
-	return result, false, nil
+	sum := summary(coffeeID, &result)
+	return sum, result, false, nil
 }
 
 // ListCoffees returns the user's saved coffees ordered by last_seen_at desc.
@@ -121,7 +125,7 @@ func (r *FirestoreRepo) ListCoffees(ctx context.Context, uid string) ([]CoffeeSu
 	return out, nil
 }
 
-// GetCoffee fetches one coffee by id.
+// GetCoffee fetches one coffee by its hash id.
 func (r *FirestoreRepo) GetCoffee(ctx context.Context, uid, coffeeID string) (Coffee, error) {
 	snap, err := r.coffees(uid).Doc(coffeeID).Get(ctx)
 	if status.Code(err) == codes.NotFound {
@@ -171,9 +175,10 @@ func (r *FirestoreRepo) PatchCoffee(
 	return r.GetCoffee(ctx, uid, coffeeID)
 }
 
-// LookupByID checks whether a user already has a coffee for the given hash id.
-func (r *FirestoreRepo) LookupByID(ctx context.Context, uid, coffeeID string) (CoffeeSummary, bool, error) {
-	snap, err := r.coffees(uid).Doc(coffeeID).Get(ctx)
+// LookupBySlug checks whether a user already has a coffee for the given
+// canonical key (slug). The hash strategy stays encapsulated here.
+func (r *FirestoreRepo) LookupBySlug(ctx context.Context, uid, canonicalKey string) (CoffeeSummary, bool, error) {
+	snap, err := r.coffees(uid).Doc(brew.HashKey(canonicalKey)).Get(ctx)
 	if status.Code(err) == codes.NotFound {
 		return CoffeeSummary{}, false, nil
 	}
@@ -294,7 +299,6 @@ func pickInt(a, b *int) *int {
 func summary(coffeeID string, c *Coffee) CoffeeSummary {
 	return CoffeeSummary{
 		CoffeeID:     coffeeID,
-		CanonicalKey: c.CanonicalKey,
 		BeanCard:     newBeanCard(&c.BeanProfile),
 		Rating:       c.Rating,
 		LastSeenAt:   c.LastSeenAt,

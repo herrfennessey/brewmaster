@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getBrewParamsForBean, getBeanById } from '../services/storage'
 import { upsertCoffeeAPI } from '../services/api'
+import { metaJoin } from '../services/format'
 import type { DrinkSuitability, DrinkType, ParameterValue } from '../types'
 import { DRINK_LABELS } from '../types'
 import ConfidenceBadge from '../components/ConfidenceBadge'
@@ -88,9 +89,9 @@ export default function BrewParameters() {
   const roastLevel = parsed?.roast_level   ?? null
   const varietal  = parsed?.varietal       ?? null
 
-  const locationTitle = [region, country].filter(Boolean).join(', ')
+  const locationTitle = metaJoin([region, country], ', ')
   const title = locationTitle || truncate(roaster ?? 'Brew Parameters', 36)
-  const beanMeta = [varietal, process, roastLevel].filter(Boolean).join(' · ')
+  const beanMeta = metaJoin([varietal, process, roastLevel])
 
   const methodLabel = params.extraction_method === 'pourover' ? 'Pourover' : 'Espresso'
   const drinkLabel = params.drink_type ? (DRINK_LABELS[params.drink_type as DrinkType] ?? params.drink_type) : null
@@ -132,7 +133,7 @@ export default function BrewParameters() {
 
       {params.flags && params.flags.length > 0 && (
         <section className="results-section">
-          <div className="results-section-title">Notes</div>
+          <div className="section-tag">Notes</div>
           <div className="flag-row">
             {params.flags.map(flag => <span key={flag} className="flag-chip">{flag}</span>)}
           </div>

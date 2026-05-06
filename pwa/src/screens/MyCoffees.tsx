@@ -2,17 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listCoffeesAPI } from '../services/api'
 import { useAuth } from '../services/auth-context'
+import { relativeTime } from '../services/format'
 import type { CoffeeSummary } from '../types'
-
-function relativeTime(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime()
-  const days = Math.floor(ms / (1000 * 60 * 60 * 24))
-  if (days <= 0) return 'today'
-  if (days === 1) return 'yesterday'
-  if (days < 7) return `${days}d ago`
-  if (days < 30) return `${Math.floor(days / 7)}w ago`
-  return `${Math.floor(days / 30)}mo ago`
-}
 
 function Stars({ rating }: { rating?: number }) {
   if (!rating) return <span className="my-coffee__rating my-coffee__rating--empty">unrated</span>

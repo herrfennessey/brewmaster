@@ -2,28 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getCoffeeAPI, patchCoffeeAPI } from '../services/api'
 import { useAuth } from '../services/auth-context'
+import { formatDate, metaJoin } from '../services/format'
 import type { Coffee } from '../types'
-
-// metaJoin filters anything not displayable. The AI parser sometimes produces
-// the literal string "null" or "undefined" for missing fields; filter(Boolean)
-// alone lets those through, so we strip them explicitly.
-function metaJoin(parts: (string | null | undefined)[], sep = ' · '): string {
-  return parts
-    .filter((p): p is string => Boolean(p) && p !== 'null' && p !== 'undefined')
-    .join(sep)
-}
-
-function formatDate(iso: string): string {
-  // Anything we display dates from is either YYYY-MM-DD (roast date) or a full
-  // ISO timestamp (opened_at). Coerce both to YYYY-MM-DD so the screen reads
-  // consistently regardless of locale.
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const y = d.getUTCFullYear()
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(d.getUTCDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
 
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
@@ -67,17 +47,26 @@ export default function CoffeeDetail() {
       .catch(err => setError(err instanceof Error ? err.message : 'Failed to load'))
   }, [id, ready, uid])
 
-  async function applyPatch(patch: { rating?: number; notes?: string; clear?: ('rating' | 'notes')[] }) {
+  async function patch(p: { rating?: number; notes?: string; clear?: ('rating' | 'notes')[] }) {
     if (!id) return
     setSaving(true)
     try {
-      const updated = await patchCoffeeAPI(id, patch)
-      setCoffee(updated)
+      setCoffee(await patchCoffeeAPI(id, p))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setSaving(false)
     }
+  }
+
+  function saveRating(n: number) {
+    // Skip the round-trip when the user clicks the already-selected star.
+    if ((coffee?.rating ?? 0) === n) return
+    return patch(n === 0 ? { clear: ['rating'] } : { rating: n })
+  }
+
+  function saveNotes() {
+    return patch(notesDraft === '' ? { clear: ['notes'] } : { notes: notesDraft })
   }
 
   if (!coffee) {
@@ -111,15 +100,12 @@ export default function CoffeeDetail() {
       </div>
 
       <section className="coffee-section">
-        <div className="coffee-section__label">Rating</div>
-        <StarRating
-          value={coffee.rating ?? 0}
-          onChange={n => applyPatch(n === 0 ? { clear: ['rating'] } : { rating: n })}
-        />
+        <div className="section-tag">Rating</div>
+        <StarRating value={coffee.rating ?? 0} onChange={saveRating} />
       </section>
 
       <section className="coffee-section">
-        <div className="coffee-section__label">Notes</div>
+        <div className="section-tag">Notes</div>
         <textarea
           className="notes-textarea"
           rows={4}
@@ -132,15 +118,15 @@ export default function CoffeeDetail() {
             type="button"
             className="action-btn"
             disabled={saving || !notesDirty}
-            onClick={() => applyPatch(notesDraft === '' ? { clear: ['notes'] } : { notes: notesDraft })}
+            onClick={saveNotes}
           >
-            {saving ? 'Saving…' : notesDirty ? 'Save notes' : 'Saved'}
+            {saving ? 'Saving…' : 'Save notes'}
           </button>
         </div>
       </section>
 
       <section className="coffee-section">
-        <div className="coffee-section__label">Bags</div>
+        <div className="section-tag">Bags</div>
         <ul className="bag-list">
           {coffee.bags.map(b => {
             const opened = formatDate(b.opened_at)
@@ -162,7 +148,7 @@ export default function CoffeeDetail() {
 
       {coffee.session_count > 0 && (
         <section className="coffee-section">
-          <div className="coffee-section__label">Brew sessions</div>
+          <div className="section-tag">Brew sessions</div>
           <p className="coffee-section__muted">
             {coffee.session_count} session{coffee.session_count === 1 ? '' : 's'} logged.
             Session detail comes in the next iteration.

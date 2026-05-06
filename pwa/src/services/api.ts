@@ -100,7 +100,6 @@ export function generateParametersAPI(
 
 export interface UpsertCoffeeResponse {
   coffee_id: string
-  canonical_key: string
   is_new: boolean
   coffee: Coffee
 }

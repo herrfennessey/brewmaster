@@ -634,7 +634,9 @@ a:hover { color: var(--text-1); }
 
 .results-section { margin-bottom: 1.1rem; }
 
-.results-section-title {
+/* Small uppercase tag label, used on every "saved coffees"-style screen for
+   section headings (Rating, Notes, Bags…) and on BrewParameters' Notes block. */
+.section-tag {
   font-size: 0.62rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -944,14 +946,6 @@ a:hover { color: var(--text-1); }
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.coffee-section__label {
-  font-size: 0.62rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-3);
 }
 
 .coffee-section__actions {
