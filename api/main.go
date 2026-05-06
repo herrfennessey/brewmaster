@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,10 +12,15 @@ import (
 	"syscall"
 	"time"
 
+	"cloud.google.com/go/firestore"
+	firebase "firebase.google.com/go/v4"
+	firebaseauth "firebase.google.com/go/v4/auth"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/herrfennessey/brewmaster/api/internal/ai"
+	"github.com/herrfennessey/brewmaster/api/internal/auth"
 	"github.com/herrfennessey/brewmaster/api/internal/router"
+	"github.com/herrfennessey/brewmaster/api/internal/store"
 	"github.com/herrfennessey/brewmaster/api/internal/telemetry"
 )
 
@@ -23,7 +29,9 @@ type Config struct {
 	Port             string
 	Environment      string
 	AxiomAPIToken    string
+	GCPProjectID     string
 	TelemetryEnabled bool
+	DisableAuth      bool
 }
 
 func loadConfig() Config {
@@ -39,8 +47,65 @@ func loadConfig() Config {
 		Port:             port,
 		Environment:      env,
 		AxiomAPIToken:    os.Getenv("AXIOM_API_TOKEN"),
+		GCPProjectID:     os.Getenv("GCP_PROJECT_ID"),
 		TelemetryEnabled: os.Getenv("TELEMETRY_ENABLED") != "false",
+		DisableAuth:      os.Getenv("DISABLE_AUTH") == "true",
 	}
+}
+
+// initStorage initializes Firestore and the Firebase auth verifier. Returns
+// nil components when the project id is unset (local dev without storage) so
+// the rest of the service still boots. The shutdown closure releases the
+// Firestore client.
+func initStorage(ctx context.Context, cfg *Config) (store.Repo, auth.Verifier, func(), error) {
+	if cfg.GCPProjectID == "" {
+		if cfg.Environment == "production" {
+			return nil, nil, nil, errors.New(
+				"GCP_PROJECT_ID is required in production but is empty; protected /api/coffees/* routes would not register")
+		}
+		slog.Warn("GCP_PROJECT_ID not set; protected routes (/api/coffees/*) will return 404 — fine for local dev only")
+		return nil, nil, func() {}, nil
+	}
+
+	fsClient, err := firestore.NewClient(ctx, cfg.GCPProjectID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("init firestore: %w", err)
+	}
+	repo := store.NewFirestoreRepo(fsClient)
+	shutdown := func() {
+		if closeErr := fsClient.Close(); closeErr != nil {
+			slog.Error("firestore close error", "error", closeErr)
+		}
+	}
+
+	if cfg.DisableAuth {
+		slog.Info("DISABLE_AUTH=true; auth middleware will inject local-dev uid")
+		return repo, nil, shutdown, nil
+	}
+
+	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: cfg.GCPProjectID})
+	if err != nil {
+		shutdown()
+		return nil, nil, nil, fmt.Errorf("init firebase app: %w", err)
+	}
+	authClient, err := app.Auth(ctx)
+	if err != nil {
+		shutdown()
+		return nil, nil, nil, fmt.Errorf("init firebase auth: %w", err)
+	}
+	return repo, verifierAdapter{authClient}, shutdown, nil
+}
+
+// verifierAdapter narrows *firebaseauth.Client to the auth.Verifier interface.
+// It also wraps verify errors so wrapcheck stays happy.
+type verifierAdapter struct{ c *firebaseauth.Client }
+
+func (a verifierAdapter) VerifyIDToken(ctx context.Context, token string) (*firebaseauth.Token, error) {
+	tok, err := a.c.VerifyIDToken(ctx, token)
+	if err != nil {
+		return nil, fmt.Errorf("verify id token: %w", err)
+	}
+	return tok, nil
 }
 
 // telemetryResult holds the initialized telemetry components.
@@ -109,7 +174,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	r := router.New(provider, tel.tracerProvider)
+	repo, verifier, shutdownStore, err := initStorage(ctx, &cfg)
+	if err != nil {
+		slog.Error("Failed to initialize storage", "error", err)
+		os.Exit(1)
+	}
+	defer shutdownStore()
+
+	r := router.New(provider, repo, verifier, tel.tracerProvider)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -137,7 +209,8 @@ func main() {
 	slog.Info("Starting server", "port", cfg.Port)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("Failed to start server", "error", err)
-		os.Exit(1)
+		shutdownStore()
+		os.Exit(1) //nolint:gocritic // shutdownStore already invoked above
 	}
 
 	slog.Info("Server stopped")

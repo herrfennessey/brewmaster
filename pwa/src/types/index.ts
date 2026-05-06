@@ -26,6 +26,46 @@ export interface BeanProfile {
   parsed: ParsedBean
   confidence: BeanConfidence
   created_at: string
+  canonical_key?: string
+}
+
+export interface Bag {
+  bag_id: string
+  opened_at: string
+  finished_at?: string
+  roast_date?: string
+  source_type: string
+}
+
+export interface Coffee {
+  canonical_key: string
+  bean_profile: BeanProfile
+  bags: Bag[]
+  rating?: number
+  notes?: string
+  first_seen_at: string
+  last_seen_at: string
+  session_count: number
+  best_session_id?: string
+}
+
+export interface BeanCard {
+  roaster_name: string
+  producer: string
+  origin_country: string
+  origin_region: string
+  process: string
+  roast_level: string
+  varietal: string
+}
+
+export interface CoffeeSummary {
+  coffee_id: string
+  canonical_key: string
+  bean_card: BeanCard
+  rating?: number
+  last_seen_at: string
+  session_count: number
 }
 
 export interface ParameterValue {

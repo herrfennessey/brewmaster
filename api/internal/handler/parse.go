@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/herrfennessey/brewmaster/api/internal/ai"
+	"github.com/herrfennessey/brewmaster/api/internal/brew"
 	"github.com/herrfennessey/brewmaster/api/internal/models"
 )
 
@@ -429,6 +430,9 @@ func (h *ParseHandler) writeProfileDirect(w http.ResponseWriter, aiResp *parsedA
 		Parsed:     aiResp.Parsed,
 		Confidence: aiResp.Confidence,
 		CreatedAt:  time.Now().UTC(),
+	}
+	if key, ok := brew.CanonicalKey(&profile.Parsed); ok {
+		profile.CanonicalKey = &key
 	}
 	writeJSON(w, http.StatusOK, profile)
 }

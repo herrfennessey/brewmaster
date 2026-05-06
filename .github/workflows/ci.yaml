@@ -1,5 +1,11 @@
 name: CI
 
+# NOTE: jobs here are required checks on main. ci-skip.yaml is a companion
+# workflow with the inverse path filter that reports the same job names as
+# success, so branch protection is satisfied on PRs that don't touch these
+# paths (e.g. infra-only Dependabot bumps). When adding/renaming/removing
+# a required job here, update ci-skip.yaml in lockstep.
+
 on:
   pull_request:
     branches: [main]

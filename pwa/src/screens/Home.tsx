@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, type DragEvent, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { parseBeanAPI, parseImageAPI, parseURLAPI, generateParametersAPI } from '../services/api'
+import { Link, useNavigate } from 'react-router-dom'
+import {
+  parseBeanAPI, parseImageAPI, parseURLAPI, generateParametersAPI, lookupCoffeeAPI,
+} from '../services/api'
 import { saveBeanProfile, saveBrewParameters } from '../services/storage'
 import type { DrinkType, ExtractionMethod } from '../types'
 import { DRINK_LABELS } from '../types'
@@ -132,6 +134,21 @@ export default function Home() {
 
       saveBeanProfile(bean)
 
+      // Re-recognition: if this user has previously saved this exact bag,
+      // skip the dial-in flow and route them straight to its detail page.
+      // Works for anonymous users too — they get their own Firestore UID.
+      if (bean.canonical_key) {
+        try {
+          const { coffee } = await lookupCoffeeAPI(bean.canonical_key)
+          if (coffee) {
+            navigate(`/coffees/${coffee.coffee_id}`)
+            return
+          }
+        } catch {
+          // Lookup is best-effort; fall through to the normal flow.
+        }
+      }
+
       // Roast date is a major brew-parameter input but rarely visible on bag
       // photos and often missing from product pages. Detour through a prompt
       // when it's missing so the user can supply it (or skip and get general
@@ -176,6 +193,7 @@ export default function Home() {
       <div className="logo">
         <CupIcon className="logo__icon" />
         <span className="logo__name">Brewmaster</span>
+        <Link to="/coffees" className="logo__action">My coffees</Link>
       </div>
 
       <p className="home-tagline">Precision brew parameters from your coffee bag.</p>

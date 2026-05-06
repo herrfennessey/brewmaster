@@ -27,11 +27,12 @@ type BeanConfidence struct {
 
 // BeanProfile is the full output of the parse-bean endpoint.
 type BeanProfile struct {
-	CreatedAt  time.Time      `json:"created_at"`
-	Confidence BeanConfidence `json:"confidence"`
-	ID         string         `json:"id"`
-	SourceType string         `json:"source_type"`
-	Parsed     ParsedBean     `json:"parsed"`
+	CreatedAt    time.Time      `json:"created_at"`
+	Confidence   BeanConfidence `json:"confidence"`
+	CanonicalKey *string        `json:"canonical_key,omitempty"`
+	ID           string         `json:"id"`
+	SourceType   string         `json:"source_type"`
+	Parsed       ParsedBean     `json:"parsed"`
 }
 
 // ParameterValue holds a recommended value and its acceptable range.
