@@ -1,0 +1,45 @@
+name: CI (skip)
+
+# Companion to ci.yaml. Required checks (test-api, lint-api, build-pwa,
+# security-scan) are gated by path filters and would otherwise sit forever in
+# "Expected" on PRs that don't touch those paths (e.g. infra-only Dependabot
+# bumps), blocking auto-merge. This workflow runs on the inverse path filter
+# and reports the same check names as success so branch protection is
+# satisfied. Keep job names in sync with ci.yaml.
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'api/**'
+      - 'pwa/**'
+      - 'Dockerfile'
+      - '.github/workflows/ci.yaml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test-api:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'true'
+
+  lint-api:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'true'
+
+  build-pwa:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'true'
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'true'
