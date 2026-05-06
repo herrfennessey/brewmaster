@@ -9,6 +9,11 @@ import { setAuthFailureHandler } from './api'
 interface AuthState {
   user: User | null
   loading: boolean
+  // ready means the API can be called: either Firebase has settled with a
+  // user (anon or otherwise), or auth is unconfigured and the server runs
+  // with DISABLE_AUTH=true. Screens should gate their fetches on this, not
+  // on user.uid — otherwise they wedge in dev mode where user is null forever.
+  ready: boolean
   isAnonymous: boolean
   anonError: Error | null
   signIn: () => Promise<void>
@@ -58,10 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const isAnonymous = Boolean(user?.isAnonymous)
+  const ready = !authBackendConfigured || (!loading && user !== null)
 
   const value = useMemo<AuthState>(() => ({
     user,
     loading,
+    ready,
     isAnonymous,
     anonError,
     signIn: upgradeToGoogle,
@@ -69,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async getIdToken() {
       return firebaseAuth?.currentUser ? firebaseAuth.currentUser.getIdToken() : null
     },
-  }), [user, loading, isAnonymous, anonError])
+  }), [user, loading, ready, isAnonymous, anonError])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

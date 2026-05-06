@@ -24,23 +24,25 @@ function Stars({ rating }: { rating?: number }) {
 }
 
 export default function MyCoffees() {
-  const { user, loading: authLoading, isAnonymous, anonError } = useAuth()
+  const { user, ready, isAnonymous, anonError } = useAuth()
   const [coffees, setCoffees] = useState<CoffeeSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Depend on user.uid (stable) instead of the User object, which Firebase
-  // replaces on every silent token refresh — re-firing this effect hourly.
+  // Re-fetch when uid becomes known (or changes via sign-in/sign-out). Using
+  // user?.uid rather than the User object means silent token refreshes don't
+  // re-fire this effect every hour. In DISABLE_AUTH mode user is null but
+  // ready is true, so the effect still fires once.
   const uid = user?.uid
   useEffect(() => {
-    if (authLoading || !uid) return
+    if (!ready) return
     listCoffeesAPI()
       .then(r => setCoffees(r.coffees))
       .catch(err => setError(err instanceof Error ? err.message : 'Failed to load'))
-  }, [uid, authLoading])
+  }, [ready, uid])
 
   const fatalErr = anonError ?? (error ? new Error(error) : null)
 
-  if (authLoading || coffees === null) {
+  if (!ready || coffees === null) {
     return (
       <div className="screen my-coffees-screen">
         <Link to="/" className="results-back">← Home</Link>

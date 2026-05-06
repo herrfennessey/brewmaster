@@ -29,7 +29,7 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
 
 export default function CoffeeDetail() {
   const { id } = useParams<{ id: string }>()
-  const { user, loading: authLoading } = useAuth()
+  const { user, ready } = useAuth()
   const [coffee, setCoffee] = useState<Coffee | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -37,16 +37,16 @@ export default function CoffeeDetail() {
 
   const uid = user?.uid
   useEffect(() => {
-    if (authLoading || !uid || !id) return
+    if (!ready || !id) return
     getCoffeeAPI(id)
       .then(c => {
         setCoffee(c)
         setNotesDraft(c.notes ?? '')
       })
       .catch(err => setError(err instanceof Error ? err.message : 'Failed to load'))
-  }, [id, uid, authLoading])
+  }, [id, ready, uid])
 
-  async function applyPatch(patch: { rating?: number; notes?: string }) {
+  async function applyPatch(patch: { rating?: number; notes?: string; clear?: ('rating' | 'notes')[] }) {
     if (!id) return
     setSaving(true)
     try {
@@ -91,7 +91,7 @@ export default function CoffeeDetail() {
         <h2>Rating</h2>
         <StarRating
           value={coffee.rating ?? 0}
-          onChange={n => applyPatch({ rating: n === 0 ? undefined : n })}
+          onChange={n => applyPatch(n === 0 ? { clear: ['rating'] } : { rating: n })}
         />
       </section>
 

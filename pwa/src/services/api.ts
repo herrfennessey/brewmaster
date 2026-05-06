@@ -130,7 +130,7 @@ export function getCoffeeAPI(id: string): Promise<Coffee> {
 
 export function patchCoffeeAPI(
   id: string,
-  patch: { rating?: number; notes?: string },
+  patch: { rating?: number; notes?: string; clear?: ('rating' | 'notes')[] },
 ): Promise<Coffee> {
   return patchJSON<Coffee>(`/api/coffees/${encodeURIComponent(id)}`, patch)
 }

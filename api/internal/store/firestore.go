@@ -152,6 +152,9 @@ func (r *FirestoreRepo) PatchCoffee(
 	if patch.Notes != nil {
 		updates = append(updates, firestore.Update{Path: "notes", Value: *patch.Notes})
 	}
+	for _, field := range patch.Clear {
+		updates = append(updates, firestore.Update{Path: field, Value: firestore.Delete})
+	}
 	if len(updates) == 0 {
 		return r.GetCoffee(ctx, uid, coffeeID)
 	}

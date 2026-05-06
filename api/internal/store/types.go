@@ -65,8 +65,11 @@ type UpsertInput struct {
 	BeanProfile models.BeanProfile
 }
 
-// PatchInput is the payload accepted by the patch handler.
+// PatchInput is the payload accepted by the patch handler. Clear lists field
+// names to explicitly delete (rating/notes) — required because JSON has no way
+// to distinguish "absent" from "explicit nil" via a *T pointer.
 type PatchInput struct {
 	Rating *int
 	Notes  *string
+	Clear  []string
 }

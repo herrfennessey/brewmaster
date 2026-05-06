@@ -54,10 +54,22 @@ type upsertResponse struct {
 	IsNew        bool         `json:"is_new"`
 }
 
-// maxNotesBytes caps server-side note storage. Patch enforces it; without a
-// cap the unbounded notes field is the easiest way for a single coffee doc to
-// approach Firestore's 1 MiB document limit.
+// maxNotesBytes caps server-side note storage. Without a cap the unbounded
+// notes field is the easiest way for a single coffee doc to approach
+// Firestore's 1 MiB document limit.
 const maxNotesBytes = 4096
+
+// validateRatingNotes enforces the data integrity rules used by both Upsert
+// and Patch. Returns a non-empty error message on rejection.
+func validateRatingNotes(rating *int, notes *string) string {
+	if rating != nil && (*rating < 1 || *rating > 5) {
+		return "rating must be between 1 and 5"
+	}
+	if notes != nil && len(*notes) > maxNotesBytes {
+		return "notes exceeds 4 KiB limit"
+	}
+	return ""
+}
 
 // Upsert creates or merges a coffee record from a parsed bean.
 func (h *CoffeesHandler) Upsert(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +88,10 @@ func (h *CoffeesHandler) Upsert(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		writeError(w, http.StatusUnprocessableEntity,
 			"bean profile lacks the roaster + bean fields needed to dedupe")
+		return
+	}
+	if msg := validateRatingNotes(req.Rating, req.Notes); msg != "" {
+		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
 
@@ -142,8 +158,17 @@ func (h *CoffeesHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchRequest struct {
-	Rating *int    `json:"rating,omitempty"`
-	Notes  *string `json:"notes,omitempty"`
+	Rating *int     `json:"rating,omitempty"`
+	Notes  *string  `json:"notes,omitempty"`
+	Clear  []string `json:"clear,omitempty"`
+}
+
+// patchClearable lists the fields a Patch request may explicitly clear via the
+// `clear` array. Anything not in this set is rejected so a typo'd field name
+// can't silently no-op or, worse, target an unintended Firestore path.
+var patchClearable = map[string]bool{
+	"rating": true,
+	"notes":  true,
 }
 
 // Patch updates rating and/or notes on a coffee.
@@ -163,16 +188,18 @@ func (h *CoffeesHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.Rating != nil && (*req.Rating < 1 || *req.Rating > 5) {
-		writeError(w, http.StatusBadRequest, "rating must be between 1 and 5")
+	if msg := validateRatingNotes(req.Rating, req.Notes); msg != "" {
+		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
-	if req.Notes != nil && len(*req.Notes) > maxNotesBytes {
-		writeError(w, http.StatusBadRequest, "notes exceeds 4 KiB limit")
-		return
+	for _, f := range req.Clear {
+		if !patchClearable[f] {
+			writeError(w, http.StatusBadRequest, "clear: unknown field "+f)
+			return
+		}
 	}
 	coffee, err := h.repo.PatchCoffee(r.Context(), uid, id,
-		store.PatchInput{Rating: req.Rating, Notes: req.Notes}, h.now())
+		store.PatchInput{Rating: req.Rating, Notes: req.Notes, Clear: req.Clear}, h.now())
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "coffee not found")
 		return
