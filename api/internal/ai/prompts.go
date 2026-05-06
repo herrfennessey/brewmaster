@@ -7,6 +7,7 @@ Rules:
 - Use null for any field not mentioned or clearly inferrable from the text
 - flavor_notes should be an empty array if none are mentioned
 - altitude_confidence: "exact" if a single number given, "range" if a range, "estimated" if inferred from region
+- altitude_m must be a plausible altitude in meters (specialty coffee grows roughly 600–2400m). When the source uses a continental-European thousand-separator (e.g. a German roaster like Five Elephant writing "1.650 masl" or "1.650-1.950 masl"), interpret the dot as a thousands separator, not a decimal point — the value is 1650, not 1.65. Use the surrounding language and roaster country (DE/AT/CH/IT/ES/FR/NL/BE/SE/DK/NO/FI common offenders) to decide. For ranges, return the midpoint and set altitude_confidence to "range".
 - roast_date must be ISO8601 format (YYYY-MM-DD) or null
 - Do not invent data not present in the text
 - confidence.level reflects how complete and unambiguous the source text was`

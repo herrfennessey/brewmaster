@@ -439,13 +439,19 @@ func (h *ParseHandler) writeProfileDirect(w http.ResponseWriter, aiResp *parsedA
 
 // annotateProfileSpan adds bean profile metadata to the active request span.
 func (h *ParseHandler) annotateProfileSpan(ctx context.Context, profile *parsedAIResponse, sourceType string) {
-	annotateParseSpan(ctx,
+	attrs := []attribute.KeyValue{
 		attribute.String("parse.source_type", sourceType),
 		attribute.String("parse.confidence.level", profile.Confidence.Level),
 		attribute.String("parse.bean.origin_country", derefStr(profile.Parsed.OriginCountry)),
 		attribute.String("parse.bean.process", derefStr(profile.Parsed.Process)),
 		attribute.String("parse.bean.varietal", derefStr(profile.Parsed.Varietal)),
 		attribute.String("parse.bean.roast_level", derefStr(profile.Parsed.RoastLevel)),
+		attribute.String("parse.bean.altitude_confidence", derefStr(profile.Parsed.AltitudeConfidence)),
+		attribute.Bool("parse.bean.altitude_known", profile.Parsed.AltitudeM != nil),
 		attribute.Int("parse.bean.flavor_notes.count", len(profile.Parsed.FlavorNotes)),
-	)
+	}
+	if profile.Parsed.AltitudeM != nil {
+		attrs = append(attrs, attribute.Float64("parse.bean.altitude_m", *profile.Parsed.AltitudeM))
+	}
+	annotateParseSpan(ctx, attrs...)
 }
