@@ -141,7 +141,7 @@ export default function Home() {
         try {
           const { coffee } = await lookupCoffeeAPI(bean.canonical_key)
           if (coffee) {
-            navigate(`/coffees/${encodeURIComponent(coffee.canonical_key)}`)
+            navigate(`/coffees/${coffee.coffee_id}`)
             return
           }
         } catch {

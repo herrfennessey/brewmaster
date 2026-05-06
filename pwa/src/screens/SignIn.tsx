@@ -14,12 +14,12 @@ export default function SignIn() {
   if (!authBackendConfigured) {
     return (
       <div className="screen sign-in-screen">
-        <h1>Sign in</h1>
-        <p style={{ color: 'var(--text-2)' }}>
+        <Link to="/" className="results-back">← Home</Link>
+        <h1 className="sign-in-screen__heading">Sign in</h1>
+        <p className="sign-in-screen__copy">
           Auth is not configured in this build. Set <code>VITE_FIREBASE_*</code>
           {' '}envs and rebuild, or run the API with <code>DISABLE_AUTH=true</code>.
         </p>
-        <Link to="/">← Home</Link>
       </div>
     )
   }
@@ -43,17 +43,19 @@ export default function SignIn() {
 
   return (
     <div className="screen sign-in-screen">
-      <h1>{isAnonymous ? 'Keep your coffees' : 'Sign in'}</h1>
-      <p style={{ color: 'var(--text-2)' }}>
+      <Link to="/" className="results-back">← Home</Link>
+      <h1 className="sign-in-screen__heading">
+        {isAnonymous ? 'Keep your coffees' : 'Sign in'}
+      </h1>
+      <p className="sign-in-screen__copy">
         {isAnonymous
           ? 'Right now your saved coffees only live on this device. Link a Google account so they follow you across browsers and survive cache clears.'
           : 'Save your coffees, log brew sessions, and pick up where you left off when you reorder a bag.'}
       </p>
-      <button className="action-btn action-btn--primary" disabled={busy} onClick={handleSignIn}>
+      <button className="action-btn action-btn--primary sign-in-screen__button" disabled={busy} onClick={handleSignIn}>
         {busy ? 'Signing in…' : 'Continue with Google'}
       </button>
-      {error && <p style={{ color: 'var(--accent-error, #c33)' }}>{error}</p>}
-      <Link to="/">← Back</Link>
+      {error && <p className="coffee-section__error">{error}</p>}
     </div>
   )
 }

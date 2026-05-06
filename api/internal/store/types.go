@@ -18,8 +18,8 @@ type Bag struct {
 }
 
 // Coffee is a single canonical bag of coffee for one user. The Firestore
-// document id is the canonical key; multiple physical purchases share one
-// document via Bags.
+// document id is brew.HashKey(CanonicalKey); multiple physical purchases share
+// one document via Bags.
 type Coffee struct {
 	FirstSeenAt   time.Time          `firestore:"first_seen_at" json:"first_seen_at"`
 	LastSeenAt    time.Time          `firestore:"last_seen_at" json:"last_seen_at"`
@@ -45,12 +45,13 @@ type BeanCard struct {
 	Varietal      string `json:"varietal"`
 }
 
-// CoffeeSummary is the trimmed shape returned by list endpoints. The
-// canonical_key is the coffee's identity — clients use it to navigate to the
-// detail page.
+// CoffeeSummary is the trimmed shape returned by list endpoints. coffee_id
+// is the short hashed Firestore doc id used in URLs; canonical_key is the
+// long human-readable slug retained for traceability/debug.
 type CoffeeSummary struct {
 	LastSeenAt   time.Time `json:"last_seen_at"`
 	Rating       *int      `json:"rating,omitempty"`
+	CoffeeID     string    `json:"coffee_id"`
 	CanonicalKey string    `json:"canonical_key"`
 	BeanCard     BeanCard  `json:"bean_card"`
 	SessionCount int       `json:"session_count"`

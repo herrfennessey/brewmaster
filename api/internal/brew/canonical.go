@@ -1,6 +1,8 @@
 package brew
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"unicode"
 
@@ -10,6 +12,17 @@ import (
 
 	"github.com/herrfennessey/brewmaster/api/internal/models"
 )
+
+// HashKey returns a 16-hex-char SHA-256 prefix of the canonical key. We use
+// this as the Firestore document id and URL slug instead of the full
+// roaster|bean|process string — which can stretch into the hundreds of
+// percent-encoded characters once the producer field carries a long farm
+// description. 16 hex chars (64 bits) gives a birthday-collision bound around
+// 2^32 distinct keys per user, which is laughably safe at personal scale.
+func HashKey(canonicalKey string) string {
+	sum := sha256.Sum256([]byte(canonicalKey))
+	return hex.EncodeToString(sum[:8])
+}
 
 // roasterSuffixes are dropped from a roaster slug after slugification so that
 // "Stone & Wood Coffee Roasters" and "Stone & Wood" produce the same key.

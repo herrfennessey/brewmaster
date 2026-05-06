@@ -60,6 +60,7 @@ export interface BeanCard {
 }
 
 export interface CoffeeSummary {
+  coffee_id: string
   canonical_key: string
   bean_card: BeanCard
   rating?: number

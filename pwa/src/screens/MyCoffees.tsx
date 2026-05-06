@@ -46,10 +46,10 @@ export default function MyCoffees() {
     return (
       <div className="screen my-coffees-screen">
         <Link to="/" className="results-back">← Home</Link>
-        <h1>My coffees</h1>
+        <h1 className="my-coffees-screen__heading">My coffees</h1>
         {fatalErr
-          ? <p style={{ color: 'var(--accent-error, #c33)' }}>{fatalErr.message}</p>
-          : <p style={{ color: 'var(--text-2)' }}>Loading…</p>}
+          ? <p className="coffee-section__error">{fatalErr.message}</p>
+          : <p className="coffee-section__muted">Loading…</p>}
       </div>
     )
   }
@@ -57,7 +57,7 @@ export default function MyCoffees() {
   return (
     <div className="screen my-coffees-screen">
       <Link to="/" className="results-back">← Home</Link>
-      <h1>My coffees</h1>
+      <h1 className="my-coffees-screen__heading">My coffees</h1>
 
       {isAnonymous && (
         <div className="anon-banner">
@@ -69,14 +69,14 @@ export default function MyCoffees() {
       )}
 
       {coffees.length === 0 ? (
-        <p style={{ color: 'var(--text-2)' }}>
+        <p className="coffee-section__muted">
           No saved coffees yet. Scan a bag and tap “Save to my coffees” after dialling in.
         </p>
       ) : (
         <ul className="my-coffees-list">
           {coffees.map(c => (
-            <li key={c.canonical_key} className="my-coffee">
-              <Link to={`/coffees/${encodeURIComponent(c.canonical_key)}`} className="my-coffee__link">
+            <li key={c.coffee_id} className="my-coffee">
+              <Link to={`/coffees/${c.coffee_id}`} className="my-coffee__link">
                 <div className="my-coffee__title">
                   {c.bean_card.roaster_name || 'Unknown roaster'}
                   {c.bean_card.producer && (

@@ -196,3 +196,27 @@ func TestCanonicalKey_RoasterEmptyAfterSuffixStripReturnsNotOK(t *testing.T) {
 		t.Error("expected ok=false when roaster is just a suffix word")
 	}
 }
+
+func TestHashKey_StableAndShort(t *testing.T) {
+	cases := []string{
+		"bonanza|finca-la-soledad|washed",
+		"five-elephant|gakenke-washing-station-farm-smallhold-farmers-of-the-kayanza-region|washed",
+		"",
+	}
+	seen := map[string]string{}
+	for _, in := range cases {
+		got := brew.HashKey(in)
+		if len(got) != 16 {
+			t.Errorf("HashKey(%q) = %q, want 16 hex chars", in, got)
+		}
+		// determinism
+		if again := brew.HashKey(in); again != got {
+			t.Errorf("HashKey(%q) not deterministic: %q vs %q", in, got, again)
+		}
+		seen[in] = got
+	}
+	// distinctness — different slugs must produce different ids in this small set
+	if seen[cases[0]] == seen[cases[1]] {
+		t.Error("expected distinct hashes for distinct inputs")
+	}
+}
