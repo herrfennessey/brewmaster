@@ -61,7 +61,7 @@ export default function BrewParameters() {
       setSaveState('saved')
       setSaveMsg(res.is_new ? 'Saved to my coffees.' : 'Updated existing coffee.')
       navTimer.current = setTimeout(() => {
-        navigate(`/coffees/${encodeURIComponent(res.coffee_id)}`)
+        navigate(`/coffees/${encodeURIComponent(res.canonical_key)}`)
       }, 600)
     } catch (err) {
       setSaveState('error')

@@ -17,7 +17,15 @@ const LocalDevUserID = "local-dev"
 
 type ctxKey int
 
-const userIDKey ctxKey = iota
+const (
+	userIDKey ctxKey = iota
+	anonKey
+)
+
+// AnonymousProvider is the value Firebase reports on tok.Firebase.SignInProvider
+// for anonymous users. Exposed so handlers/tests can compare without importing
+// the firebase SDK.
+const AnonymousProvider = "anonymous"
 
 // Verifier is the subset of *auth.Client that the middleware depends on.
 // Defining it as an interface keeps the middleware unit-testable without the
@@ -33,7 +41,9 @@ func Middleware(verifier Verifier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if verifier == nil {
-				next.ServeHTTP(w, r.WithContext(withUserID(r.Context(), LocalDevUserID)))
+				ctx := withUserID(r.Context(), LocalDevUserID)
+				ctx = withAnonymous(ctx, false)
+				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
 
@@ -50,7 +60,9 @@ func Middleware(verifier Verifier) func(http.Handler) http.Handler {
 				return
 			}
 
-			next.ServeHTTP(w, r.WithContext(withUserID(r.Context(), tok.UID)))
+			ctx := withUserID(r.Context(), tok.UID)
+			ctx = withAnonymous(ctx, tok.Firebase.SignInProvider == AnonymousProvider)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
@@ -62,8 +74,20 @@ func UserIDFromContext(ctx context.Context) (string, bool) {
 	return uid, ok && uid != ""
 }
 
+// IsAnonymousFromContext reports whether the verified token was issued for an
+// anonymous Firebase user. Returns false for tokens issued by Google or any
+// other provider, and false in DISABLE_AUTH mode.
+func IsAnonymousFromContext(ctx context.Context) bool {
+	v, ok := ctx.Value(anonKey).(bool)
+	return ok && v
+}
+
 func withUserID(ctx context.Context, uid string) context.Context {
 	return context.WithValue(ctx, userIDKey, uid)
+}
+
+func withAnonymous(ctx context.Context, anon bool) context.Context {
+	return context.WithValue(ctx, anonKey, anon)
 }
 
 func bearerToken(header string) (string, bool) {

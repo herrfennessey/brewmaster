@@ -12,6 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/google/uuid"
+
+	"github.com/herrfennessey/brewmaster/api/internal/models"
 )
 
 // ErrNotFound is returned when a requested document does not exist.
@@ -79,7 +81,10 @@ func (r *FirestoreRepo) UpsertCoffee(
 		}
 		existing.Bags = append(existing.Bags, newBag(in, now))
 		existing.LastSeenAt = now
-		existing.BeanProfile = in.BeanProfile
+		// Only fill in fields the existing profile is missing — never let a
+		// thinner re-parse (e.g. text-only) clobber a richer earlier one (e.g.
+		// image+web). The user can still correct fields explicitly via Patch.
+		existing.BeanProfile = mergeBeanProfile(&existing.BeanProfile, &in.BeanProfile)
 		applyPatch(&existing, PatchInput{Rating: in.Rating, Notes: in.Notes})
 		result = existing
 		return tx.Set(docRef, existing) //nolint:wrapcheck
@@ -129,24 +134,26 @@ func (r *FirestoreRepo) GetCoffee(ctx context.Context, uid, coffeeID string) (Co
 	return c, nil
 }
 
-// PatchCoffee mutates rating and/or notes. Other fields are immutable here.
-// Uses field-level updates so the (potentially large) Coffee doc isn't
-// rewritten on every star click, and so concurrent rating + notes edits
-// don't fight.
+// PatchCoffee mutates rating and/or notes. Intentionally does not bump
+// last_seen_at — that field tracks bag activity (saves, finishes, sessions),
+// not metadata edits, so adjusting a rating shouldn't reshuffle My Coffees.
 func (r *FirestoreRepo) PatchCoffee(
 	ctx context.Context,
 	uid, coffeeID string,
 	patch PatchInput,
-	now time.Time,
+	_ time.Time,
 ) (Coffee, error) {
 	docRef := r.coffees(uid).Doc(coffeeID)
 
-	updates := []firestore.Update{{Path: "last_seen_at", Value: now}}
+	updates := []firestore.Update{}
 	if patch.Rating != nil {
 		updates = append(updates, firestore.Update{Path: "rating", Value: *patch.Rating})
 	}
 	if patch.Notes != nil {
 		updates = append(updates, firestore.Update{Path: "notes", Value: *patch.Notes})
+	}
+	if len(updates) == 0 {
+		return r.GetCoffee(ctx, uid, coffeeID)
 	}
 
 	if _, err := docRef.Update(ctx, updates); err != nil {
@@ -211,13 +218,98 @@ func applyPatch(c *Coffee, p PatchInput) {
 	}
 }
 
-func summary(id string, c *Coffee) CoffeeSummary {
+// sourceTypeRank ranks parse sources from least to most informative. Used by
+// mergeBeanProfile to upgrade — but never downgrade — the recorded source.
+var sourceTypeRank = map[string]int{
+	"":          0,
+	"text":      1,
+	"url":       2,
+	"image":     3,
+	"image+web": 4,
+}
+
+// mergeBeanProfile fills nil/empty fields on existing from incoming. It never
+// overwrites data the existing profile already has — a thinner re-parse must
+// not erase a richer earlier one. Source/ID/CreatedAt stay on the existing
+// (we're keeping the first-parse's identity), except source_type which
+// upgrades when the incoming parse is richer.
+func mergeBeanProfile(existing, incoming *models.BeanProfile) models.BeanProfile {
+	merged := *existing
+	if sourceTypeRank[incoming.SourceType] > sourceTypeRank[existing.SourceType] {
+		merged.SourceType = incoming.SourceType
+	}
+	if existing.CanonicalKey == nil && incoming.CanonicalKey != nil {
+		merged.CanonicalKey = incoming.CanonicalKey
+	}
+	merged.Parsed = mergeParsedBean(&existing.Parsed, &incoming.Parsed)
+	return merged
+}
+
+func mergeParsedBean(existing, incoming *models.ParsedBean) models.ParsedBean {
+	merged := *existing
+	merged.Producer = pickStr(existing.Producer, incoming.Producer)
+	merged.OriginCountry = pickStr(existing.OriginCountry, incoming.OriginCountry)
+	merged.OriginRegion = pickStr(existing.OriginRegion, incoming.OriginRegion)
+	merged.AltitudeM = pickFloat(existing.AltitudeM, incoming.AltitudeM)
+	merged.AltitudeConfidence = pickStr(existing.AltitudeConfidence, incoming.AltitudeConfidence)
+	merged.Varietal = pickStr(existing.Varietal, incoming.Varietal)
+	merged.Process = pickStr(existing.Process, incoming.Process)
+	merged.RoastLevel = pickStr(existing.RoastLevel, incoming.RoastLevel)
+	merged.RoastDate = pickStr(existing.RoastDate, incoming.RoastDate)
+	merged.RoasterName = pickStr(existing.RoasterName, incoming.RoasterName)
+	merged.LotYear = pickInt(existing.LotYear, incoming.LotYear)
+	if len(existing.FlavorNotes) == 0 && len(incoming.FlavorNotes) > 0 {
+		merged.FlavorNotes = incoming.FlavorNotes
+	}
+	return merged
+}
+
+func pickStr(a, b *string) *string {
+	if a != nil && *a != "" {
+		return a
+	}
+	return b
+}
+
+func pickFloat(a, b *float64) *float64 {
+	if a != nil {
+		return a
+	}
+	return b
+}
+
+func pickInt(a, b *int) *int {
+	if a != nil {
+		return a
+	}
+	return b
+}
+
+func summary(_ string, c *Coffee) CoffeeSummary {
 	return CoffeeSummary{
-		CoffeeID:     id,
 		CanonicalKey: c.CanonicalKey,
-		BeanProfile:  c.BeanProfile,
+		BeanCard:     newBeanCard(&c.BeanProfile),
 		Rating:       c.Rating,
 		LastSeenAt:   c.LastSeenAt,
 		SessionCount: c.SessionCount,
 	}
+}
+
+func newBeanCard(b *models.BeanProfile) BeanCard {
+	return BeanCard{
+		RoasterName:   strOrEmpty(b.Parsed.RoasterName),
+		Producer:      strOrEmpty(b.Parsed.Producer),
+		OriginCountry: strOrEmpty(b.Parsed.OriginCountry),
+		OriginRegion:  strOrEmpty(b.Parsed.OriginRegion),
+		Process:       strOrEmpty(b.Parsed.Process),
+		RoastLevel:    strOrEmpty(b.Parsed.RoastLevel),
+		Varietal:      strOrEmpty(b.Parsed.Varietal),
+	}
+}
+
+func strOrEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

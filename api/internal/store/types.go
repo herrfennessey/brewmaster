@@ -32,15 +32,28 @@ type Coffee struct {
 	SessionCount  int                `firestore:"session_count" json:"session_count"`
 }
 
-// CoffeeSummary is the trimmed shape returned by list endpoints. Avoids
-// shipping every BeanProfile field over the wire when the user is browsing.
+// BeanCard is the trimmed bean view shown on the My Coffees list. The full
+// BeanProfile (which includes flavor_notes and other long fields) is loaded
+// only when the user opens a specific coffee.
+type BeanCard struct {
+	RoasterName   string `json:"roaster_name"`
+	Producer      string `json:"producer"`
+	OriginCountry string `json:"origin_country"`
+	OriginRegion  string `json:"origin_region"`
+	Process       string `json:"process"`
+	RoastLevel    string `json:"roast_level"`
+	Varietal      string `json:"varietal"`
+}
+
+// CoffeeSummary is the trimmed shape returned by list endpoints. The
+// canonical_key is the coffee's identity — clients use it to navigate to the
+// detail page.
 type CoffeeSummary struct {
-	LastSeenAt   time.Time          `json:"last_seen_at"`
-	Rating       *int               `json:"rating,omitempty"`
-	CanonicalKey string             `json:"canonical_key"`
-	CoffeeID     string             `json:"coffee_id"`
-	BeanProfile  models.BeanProfile `json:"bean_profile"`
-	SessionCount int                `json:"session_count"`
+	LastSeenAt   time.Time `json:"last_seen_at"`
+	Rating       *int      `json:"rating,omitempty"`
+	CanonicalKey string    `json:"canonical_key"`
+	BeanCard     BeanCard  `json:"bean_card"`
+	SessionCount int       `json:"session_count"`
 }
 
 // UpsertInput is the payload accepted by the upsert handler. RoastDate may be

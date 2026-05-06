@@ -24,7 +24,7 @@ function Stars({ rating }: { rating?: number }) {
 }
 
 export default function MyCoffees() {
-  const { user, loading: authLoading, isAnonymous } = useAuth()
+  const { user, loading: authLoading, isAnonymous, anonError } = useAuth()
   const [coffees, setCoffees] = useState<CoffeeSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -38,13 +38,15 @@ export default function MyCoffees() {
       .catch(err => setError(err instanceof Error ? err.message : 'Failed to load'))
   }, [uid, authLoading])
 
+  const fatalErr = anonError ?? (error ? new Error(error) : null)
+
   if (authLoading || coffees === null) {
     return (
       <div className="screen my-coffees-screen">
         <Link to="/" className="results-back">← Home</Link>
         <h1>My coffees</h1>
-        {error
-          ? <p style={{ color: 'var(--accent-error, #c33)' }}>{error}</p>
+        {fatalErr
+          ? <p style={{ color: 'var(--accent-error, #c33)' }}>{fatalErr.message}</p>
           : <p style={{ color: 'var(--text-2)' }}>Loading…</p>}
       </div>
     )
@@ -55,7 +57,7 @@ export default function MyCoffees() {
       <Link to="/" className="results-back">← Home</Link>
       <h1>My coffees</h1>
 
-      {isAnonymous && coffees.length > 0 && (
+      {isAnonymous && (
         <div className="anon-banner">
           You're signed in as a guest on this device.
           {' '}
@@ -71,12 +73,12 @@ export default function MyCoffees() {
       ) : (
         <ul className="my-coffees-list">
           {coffees.map(c => (
-            <li key={c.coffee_id} className="my-coffee">
-              <Link to={`/coffees/${encodeURIComponent(c.coffee_id)}`} className="my-coffee__link">
+            <li key={c.canonical_key} className="my-coffee">
+              <Link to={`/coffees/${encodeURIComponent(c.canonical_key)}`} className="my-coffee__link">
                 <div className="my-coffee__title">
-                  {c.bean_profile.parsed.roaster_name ?? 'Unknown roaster'}
-                  {c.bean_profile.parsed.producer && (
-                    <span className="my-coffee__producer"> · {c.bean_profile.parsed.producer}</span>
+                  {c.bean_card.roaster_name || 'Unknown roaster'}
+                  {c.bean_card.producer && (
+                    <span className="my-coffee__producer"> · {c.bean_card.producer}</span>
                   )}
                 </div>
                 <div className="my-coffee__meta">

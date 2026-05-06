@@ -59,7 +59,11 @@ func loadConfig() Config {
 // Firestore client.
 func initStorage(ctx context.Context, cfg *Config) (store.Repo, auth.Verifier, func(), error) {
 	if cfg.GCPProjectID == "" {
-		slog.Info("GCP_PROJECT_ID not set; skipping Firestore + Firebase init")
+		if cfg.Environment == "production" {
+			return nil, nil, nil, errors.New(
+				"GCP_PROJECT_ID is required in production but is empty; protected /api/coffees/* routes would not register")
+		}
+		slog.Warn("GCP_PROJECT_ID not set; protected routes (/api/coffees/*) will return 404 — fine for local dev only")
 		return nil, nil, func() {}, nil
 	}
 

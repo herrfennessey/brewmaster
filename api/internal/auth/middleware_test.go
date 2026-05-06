@@ -14,15 +14,19 @@ import (
 )
 
 type stubVerifier struct {
-	err error
-	uid string
+	err          error
+	uid          string
+	signProvider string
 }
 
 func (s *stubVerifier) VerifyIDToken(_ context.Context, _ string) (*firebaseauth.Token, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
-	return &firebaseauth.Token{UID: s.uid}, nil
+	return &firebaseauth.Token{
+		UID:      s.uid,
+		Firebase: firebaseauth.FirebaseInfo{SignInProvider: s.signProvider},
+	}, nil
 }
 
 func makeRequest(authHeader string) *http.Request {
@@ -96,6 +100,41 @@ func TestMiddleware_RejectsMalformedHeader(t *testing.T) {
 		if rec.Code != http.StatusUnauthorized {
 			t.Errorf("header %q: expected 401, got %d", h, rec.Code)
 		}
+	}
+}
+
+func TestMiddleware_FlagsAnonymousProvider(t *testing.T) {
+	cases := []struct {
+		provider string
+		wantAnon bool
+	}{
+		{auth.AnonymousProvider, true},
+		{"google.com", false},
+		{"password", false},
+		{"", false},
+	}
+	for _, tt := range cases {
+		var anon bool
+		handler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			anon = auth.IsAnonymousFromContext(r.Context())
+		})
+		mw := auth.Middleware(&stubVerifier{uid: "u", signProvider: tt.provider})(handler)
+		mw.ServeHTTP(httptest.NewRecorder(), makeRequest("Bearer t"))
+		if anon != tt.wantAnon {
+			t.Errorf("provider %q: expected anon=%v, got %v", tt.provider, tt.wantAnon, anon)
+		}
+	}
+}
+
+func TestMiddleware_DisabledModeNotAnonymous(t *testing.T) {
+	var anon bool
+	handler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		anon = auth.IsAnonymousFromContext(r.Context())
+	})
+	mw := auth.Middleware(nil)(handler)
+	mw.ServeHTTP(httptest.NewRecorder(), makeRequest(""))
+	if anon {
+		t.Error("DISABLE_AUTH local-dev user should not be flagged anonymous")
 	}
 }
 

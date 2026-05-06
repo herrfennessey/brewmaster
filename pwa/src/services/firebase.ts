@@ -57,10 +57,12 @@ export async function upgradeToGoogle(): Promise<void> {
       await linkWithPopup(current, provider)
       return
     } catch (err) {
-      const code = (err as { code?: string }).code
       // The Google account already belongs to another UID — sign into that
       // account directly. Anon data on this device becomes orphaned.
-      if (code === 'auth/credential-already-in-use' || code === 'auth/email-already-in-use') {
+      // (auth/email-already-in-use also fires here but credentialFromError
+      // returns null for it, so it falls through to the rethrow below — the
+      // user gets the right error message.)
+      if ((err as { code?: string }).code === 'auth/credential-already-in-use') {
         const credential = GoogleAuthProvider.credentialFromError(err as never)
         if (credential) {
           await signInWithCredential(firebaseAuth, credential)

@@ -10,6 +10,15 @@ export function setIdTokenGetter(fn: () => Promise<string | null>) {
   getIdToken = fn
 }
 
+// Called when the server rejects an authed request with 401. The auth layer
+// installs a recovery handler that signs out the cached (likely revoked)
+// Firebase user and mints a fresh anonymous one so the app self-heals.
+let onAuthFailure: () => Promise<void> = async () => {}
+
+export function setAuthFailureHandler(fn: () => Promise<void>) {
+  onAuthFailure = fn
+}
+
 async function authedHeaders(extra?: Record<string, string>): Promise<Record<string, string>> {
   const token = await getIdToken()
   const headers: Record<string, string> = { ...(extra ?? {}) }
@@ -18,6 +27,9 @@ async function authedHeaders(extra?: Record<string, string>): Promise<Record<str
 }
 
 async function unwrap<T>(res: Response): Promise<T> {
+  if (res.status === 401) {
+    await onAuthFailure()
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error((err as { error?: string }).error ?? res.statusText)
@@ -87,7 +99,6 @@ export function generateParametersAPI(
 // =============================================================================
 
 export interface UpsertCoffeeResponse {
-  coffee_id: string
   canonical_key: string
   is_new: boolean
   coffee: Coffee

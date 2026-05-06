@@ -49,11 +49,15 @@ type upsertRequest struct {
 }
 
 type upsertResponse struct {
-	CoffeeID     string       `json:"coffee_id"`
 	CanonicalKey string       `json:"canonical_key"`
 	Coffee       store.Coffee `json:"coffee"`
 	IsNew        bool         `json:"is_new"`
 }
+
+// maxNotesBytes caps server-side note storage. Patch enforces it; without a
+// cap the unbounded notes field is the easiest way for a single coffee doc to
+// approach Firestore's 1 MiB document limit.
+const maxNotesBytes = 4096
 
 // Upsert creates or merges a coffee record from a parsed bean.
 func (h *CoffeesHandler) Upsert(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +92,6 @@ func (h *CoffeesHandler) Upsert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, upsertResponse{
-		CoffeeID:     key,
 		CanonicalKey: key,
 		Coffee:       coffee,
 		IsNew:        created,
@@ -162,6 +165,10 @@ func (h *CoffeesHandler) Patch(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Rating != nil && (*req.Rating < 1 || *req.Rating > 5) {
 		writeError(w, http.StatusBadRequest, "rating must be between 1 and 5")
+		return
+	}
+	if req.Notes != nil && len(*req.Notes) > maxNotesBytes {
+		writeError(w, http.StatusBadRequest, "notes exceeds 4 KiB limit")
 		return
 	}
 	coffee, err := h.repo.PatchCoffee(r.Context(), uid, id,

@@ -4,11 +4,13 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { onIdTokenChanged, type User } from 'firebase/auth'
 import { authBackendConfigured, ensureAnonymous, firebaseAuth, googleSignOut, upgradeToGoogle } from './firebase'
+import { setAuthFailureHandler } from './api'
 
 interface AuthState {
   user: User | null
   loading: boolean
   isAnonymous: boolean
+  anonError: Error | null
   signIn: () => Promise<void>
   signOut: () => Promise<void>
   getIdToken: () => Promise<string | null>
@@ -16,9 +18,22 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null)
 
+// recoverFromRevokedToken is invoked by api.ts when the server returns 401.
+// Most likely cause: the cached anonymous user was deleted server-side
+// (admin action, GDPR cleanup) and the local SDK still holds a stale token.
+// Signing out forces onIdTokenChanged to fire with null, which mints a fresh
+// anonymous user instead of leaving the app wedged on the dead identity.
+async function recoverFromRevokedToken(): Promise<void> {
+  if (!firebaseAuth?.currentUser) return
+  await googleSignOut()
+}
+
+setAuthFailureHandler(recoverFromRevokedToken)
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(authBackendConfigured)
+  const [anonError, setAnonError] = useState<Error | null>(null)
 
   useEffect(() => {
     if (!firebaseAuth) return
@@ -29,9 +44,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // works without a sign-in wall. The next id-token-changed fires when
       // the anon user is ready.
       if (!next) {
-        ensureAnonymous().catch(err => {
-          console.error('anonymous sign-in failed', err)
-        })
+        ensureAnonymous()
+          .then(() => setAnonError(null))
+          .catch(err => {
+            console.error('anonymous sign-in failed', err)
+            setAnonError(err instanceof Error ? err : new Error('Anonymous sign-in failed'))
+          })
+      } else {
+        setAnonError(null)
       }
     })
     return unsubscribe
@@ -43,12 +63,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     loading,
     isAnonymous,
+    anonError,
     signIn: upgradeToGoogle,
     signOut: googleSignOut,
     async getIdToken() {
       return firebaseAuth?.currentUser ? firebaseAuth.currentUser.getIdToken() : null
     },
-  }), [user, loading, isAnonymous])
+  }), [user, loading, isAnonymous, anonError])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

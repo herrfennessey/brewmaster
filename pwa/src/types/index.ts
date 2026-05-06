@@ -49,10 +49,19 @@ export interface Coffee {
   best_session_id?: string
 }
 
+export interface BeanCard {
+  roaster_name: string
+  producer: string
+  origin_country: string
+  origin_region: string
+  process: string
+  roast_level: string
+  varietal: string
+}
+
 export interface CoffeeSummary {
-  coffee_id: string
   canonical_key: string
-  bean_profile: BeanProfile
+  bean_card: BeanCard
   rating?: number
   last_seen_at: string
   session_count: number
