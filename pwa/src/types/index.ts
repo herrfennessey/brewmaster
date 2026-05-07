@@ -60,12 +60,20 @@ export interface BeanCard {
   varietal: string
 }
 
+export interface BagSummary {
+  bag_id: string
+  opened_at: string
+  roast_date?: string
+}
+
 export interface CoffeeSummary {
   coffee_id: string
   bean_card: BeanCard
   rating?: number
   last_seen_at: string
   session_count: number
+  bag_count: number
+  open_bag?: BagSummary
 }
 
 export interface ParameterValue {

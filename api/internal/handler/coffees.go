@@ -212,6 +212,39 @@ func (h *CoffeesHandler) Patch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, coffee)
 }
 
+// SetBagFinished flips a bag's finished_at on (POST .../finish) or off
+// (POST .../reopen). Reopen exists because users mis-tap "finish" all the
+// time, and forcing them to re-add the bag would orphan the brew history.
+func (h *CoffeesHandler) SetBagFinished(finished bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uid, ok := requireUID(w, r)
+		if !ok {
+			return
+		}
+		coffeeID := r.PathValue("id")
+		bagID := r.PathValue("bagId")
+		if coffeeID == "" || bagID == "" {
+			writeError(w, http.StatusBadRequest, "missing coffee or bag id")
+			return
+		}
+		coffee, err := h.repo.SetBagFinished(r.Context(), uid, coffeeID, bagID, finished, h.now())
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "coffee not found")
+			return
+		}
+		if errors.Is(err, store.ErrBagNotFound) {
+			writeError(w, http.StatusNotFound, "bag not found")
+			return
+		}
+		if err != nil {
+			slog.ErrorContext(r.Context(), "set bag finished failed", "error", err, "uid", uid, "coffee_id", coffeeID, "bag_id", bagID, "finished", finished)
+			writeError(w, http.StatusInternalServerError, "failed to update bag")
+			return
+		}
+		writeJSON(w, http.StatusOK, coffee)
+	}
+}
+
 // Delete removes a coffee. Returns 204 on success, 404 when the coffee is
 // already gone (or never belonged to this user — same response shape so we
 // don't leak the existence of other users' coffees).

@@ -59,7 +59,9 @@ export default function MyCoffees() {
 
       {coffees.length === 0 ? (
         <p className="coffee-section__muted">
-          No saved coffees yet. Scan a bag and tap “Save to my coffees” after dialling in.
+          No coffees saved yet. Scan a bag, dial it in, and tap “Add this bag” —
+          re-orders of the same coffee then stack under one entry so the
+          learnings carry over.
         </p>
       ) : (
         <ul className="my-coffees-list">

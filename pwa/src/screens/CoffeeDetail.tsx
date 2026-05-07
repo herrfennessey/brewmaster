@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { deleteCoffeeAPI, getCoffeeAPI, patchCoffeeAPI } from '../services/api'
+import {
+  deleteCoffeeAPI, getCoffeeAPI, patchCoffeeAPI, setBagFinishedAPI,
+} from '../services/api'
 import { useAuth } from '../services/auth-context'
 import { formatDate, metaJoin } from '../services/format'
-import type { Coffee } from '../types'
+import type { Bag, Coffee } from '../types'
 
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
@@ -73,7 +75,7 @@ export default function CoffeeDetail() {
 
   async function handleDelete() {
     if (!id) return
-    const ok = window.confirm('Delete this coffee? Bag history and ratings will be removed.')
+    const ok = window.confirm('Delete this coffee? Every bag, rating and note will be removed.')
     if (!ok) return
     setDeleting(true)
     try {
@@ -82,6 +84,15 @@ export default function CoffeeDetail() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete')
       setDeleting(false)
+    }
+  }
+
+  async function setBagFinished(bagID: string, finished: boolean) {
+    if (!id) return
+    try {
+      setCoffee(await setBagFinishedAPI(id, bagID, finished))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update bag')
     }
   }
 
@@ -141,26 +152,51 @@ export default function CoffeeDetail() {
         </div>
       </section>
 
-      <section className="coffee-section">
-        <div className="section-tag">Bags</div>
-        <ul className="bag-list">
-          {coffee.bags.map(b => {
-            const opened = formatDate(b.opened_at)
-            const finished = b.finished_at ? formatDate(b.finished_at) : null
-            const roast = b.roast_date ?? null
-            return (
-              <li key={b.bag_id} className="bag-list__item">
-                <span className="bag-list__roast">
-                  {roast ? `Roasted ${roast}` : 'Roast date unknown'}
-                </span>
-                <span className="bag-list__dates">
-                  Opened {opened}{finished && ` · finished ${finished}`}
-                </span>
-              </li>
-            )
-          })}
-        </ul>
-      </section>
+      {(() => {
+        const open = coffee.bags.filter(b => !b.finished_at)
+        const finished = coffee.bags.filter(b => b.finished_at)
+        const renderBag = (b: Bag, isOpen: boolean) => (
+          <li key={b.bag_id} className="bag-list__item">
+            <div className="bag-list__lines">
+              <span className="bag-list__roast">
+                {b.roast_date ? `Roasted ${b.roast_date}` : 'Roast date unknown'}
+              </span>
+              <span className="bag-list__dates">
+                Opened {formatDate(b.opened_at)}
+                {b.finished_at && ` · finished ${formatDate(b.finished_at)}`}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="bag-list__action"
+              onClick={() => setBagFinished(b.bag_id, isOpen)}
+            >
+              {isOpen ? 'Mark finished' : 'Reopen'}
+            </button>
+          </li>
+        )
+        return (
+          <>
+            <section className="coffee-section">
+              <div className="section-tag">Open bags</div>
+              {open.length === 0 ? (
+                <p className="coffee-section__muted">
+                  No open bag right now. Re-scan this coffee when you start a fresh bag — your ratings and notes carry over.
+                </p>
+              ) : (
+                <ul className="bag-list">{open.map(b => renderBag(b, true))}</ul>
+              )}
+            </section>
+
+            {finished.length > 0 && (
+              <section className="coffee-section">
+                <div className="section-tag">Finished</div>
+                <ul className="bag-list bag-list--finished">{finished.map(b => renderBag(b, false))}</ul>
+              </section>
+            )}
+          </>
+        )
+      })()}
 
       {coffee.session_count > 0 && (
         <section className="coffee-section">

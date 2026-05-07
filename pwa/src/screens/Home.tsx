@@ -191,7 +191,7 @@ export default function Home() {
 
   return (
     <div className="screen home-screen">
-      <p className="home-tagline">Precision brew parameters from your coffee bag.</p>
+      <p className="home-tagline">Dial in every bag. Carry the learnings forward.</p>
 
       <form onSubmit={handleSubmit} className="input-card">
         <div className="input-card__tabs">

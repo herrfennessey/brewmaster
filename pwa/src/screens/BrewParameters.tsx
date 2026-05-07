@@ -60,7 +60,9 @@ export default function BrewParameters() {
     try {
       const res = await upsertCoffeeAPI(bean)
       setSaveState('saved')
-      setSaveMsg(res.is_new ? 'Saved to my coffees.' : 'Updated existing coffee.')
+      setSaveMsg(res.is_new
+        ? 'Saved as a new coffee in your library.'
+        : 'Added a new bag — your ratings and notes carry over from earlier bags.')
       navTimer.current = setTimeout(() => {
         navigate(`/coffees/${res.coffee_id}`)
       }, 600)
@@ -164,7 +166,7 @@ export default function BrewParameters() {
           onClick={saveToMyCoffees}
           title={bean?.canonical_key ? '' : 'Need roaster + bean to save'}
         >
-          {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : 'Save to my coffees'}
+          {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : 'Add this bag'}
         </button>
         <Link to="/" className="action-btn action-btn--primary">
           New analysis →

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listCoffeesAPI } from '../services/api'
 import { useAuth } from '../services/auth-context'
-import { metaJoin } from '../services/format'
+import { metaJoin, relativeTime } from '../services/format'
 import type { CoffeeSummary } from '../types'
 
 const MAX_RAIL_ITEMS = 8
@@ -35,7 +35,14 @@ export default function MyCoffeesRail() {
     if (!ready) return
     let cancelled = false
     listCoffeesAPI()
-      .then(r => { if (!cancelled) setCoffees(r.coffees.slice(0, MAX_RAIL_ITEMS)) })
+      .then(r => {
+        if (cancelled) return
+        const open = r.coffees
+          .filter(c => c.open_bag)
+          .sort((a, b) => (b.open_bag!.opened_at).localeCompare(a.open_bag!.opened_at))
+          .slice(0, MAX_RAIL_ITEMS)
+        setCoffees(open)
+      })
       .catch(() => { if (!cancelled) setCoffees([]) })
     return () => { cancelled = true }
   }, [ready])
@@ -45,25 +52,40 @@ export default function MyCoffeesRail() {
   return (
     <section className="coffees-rail">
       <div className="coffees-rail__head">
-        <span className="section-tag">My coffees</span>
-        <Link to="/coffees" className="coffees-rail__view-all">View all →</Link>
+        <span className="section-tag">Open bags</span>
+        <Link to="/coffees" className="coffees-rail__view-all">View all coffees →</Link>
       </div>
       <div className="coffees-rail__viewport" role="list">
-        {coffees.map(c => (
-          <Link
-            key={c.coffee_id}
-            to={`/coffees/${c.coffee_id}`}
-            className="coffees-rail__card"
-            role="listitem"
-          >
-            {c.bean_card.roaster_name && (
-              <span className="coffees-rail__roaster">{c.bean_card.roaster_name}</span>
-            )}
-            <span className="coffees-rail__title">{cardTitle(c)}</span>
-            {cardMeta(c) && <span className="coffees-rail__meta">{cardMeta(c)}</span>}
-            <Stars rating={c.rating} />
-          </Link>
-        ))}
+        {coffees.map(c => {
+          const bag = c.open_bag!
+          const meta = cardMeta(c)
+          const opened = relativeTime(bag.opened_at)
+          const roast = bag.roast_date ? `Roasted ${bag.roast_date}` : 'No roast date'
+          const refillNote = c.bag_count > 1 ? `Bag ${c.bag_count}` : null
+          return (
+            <Link
+              key={c.coffee_id}
+              to={`/coffees/${c.coffee_id}`}
+              className="coffees-rail__card"
+              role="listitem"
+            >
+              {c.bean_card.roaster_name && (
+                <span className="coffees-rail__roaster">{c.bean_card.roaster_name}</span>
+              )}
+              <span className="coffees-rail__title">{cardTitle(c)}</span>
+              {meta && <span className="coffees-rail__meta">{meta}</span>}
+              <span className="coffees-rail__bag-line">
+                <span>{roast}</span>
+                <span className="coffees-rail__sep">·</span>
+                <span>Opened {opened}</span>
+              </span>
+              <div className="coffees-rail__foot">
+                <Stars rating={c.rating} />
+                {refillNote && <span className="coffees-rail__refill">{refillNote}</span>}
+              </div>
+            </Link>
+          )
+        })}
       </div>
     </section>
   )

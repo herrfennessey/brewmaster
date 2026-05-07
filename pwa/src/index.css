@@ -1569,6 +1569,76 @@ a:hover { color: var(--text-1); }
 .coffees-rail__stars-filled { color: var(--amber-2); }
 .coffees-rail__stars-empty { color: var(--text-3); }
 
+.coffees-rail__bag-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-family: var(--mono), monospace;
+  font-size: 0.7rem;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.coffees-rail__sep { color: var(--text-3); opacity: 0.5; }
+
+.coffees-rail__foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.coffees-rail__refill {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* Coffee Detail bag list — mark-finished / reopen affordances */
+.bag-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.bag-list__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.bag-list__action {
+  appearance: none;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-family: var(--font), sans-serif;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 4px 9px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.bag-list__action:hover {
+  border-color: var(--border-2);
+  color: var(--text-1);
+  background: var(--surface-2);
+}
+.bag-list--finished .bag-list__item {
+  opacity: 0.7;
+}
+.bag-list--finished .bag-list__roast {
+  color: var(--text-2);
+}
+
 /* Bump screen max-width on desktop so brew-params and other content can
    breathe inside the wider main pane. Mobile stays at 480px. */
 @media (min-width: 900px) {

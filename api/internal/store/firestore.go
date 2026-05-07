@@ -30,6 +30,7 @@ type Repo interface {
 	GetCoffee(ctx context.Context, uid, coffeeID string) (Coffee, error)
 	PatchCoffee(ctx context.Context, uid, coffeeID string, patch PatchInput, now time.Time) (Coffee, error)
 	DeleteCoffee(ctx context.Context, uid, coffeeID string) error
+	SetBagFinished(ctx context.Context, uid, coffeeID, bagID string, finished bool, now time.Time) (Coffee, error)
 	LookupBySlug(ctx context.Context, uid, canonicalKey string) (CoffeeSummary, bool, error)
 }
 
@@ -193,6 +194,76 @@ func (r *FirestoreRepo) PatchCoffee(
 	return r.GetCoffee(ctx, uid, coffeeID)
 }
 
+// ErrBagNotFound is returned when SetBagFinished can't find the bag inside the
+// coffee. Distinct from ErrNotFound (which means the coffee itself is missing)
+// so handlers can render a more useful error.
+var ErrBagNotFound = errors.New("store: bag not found")
+
+// SetBagFinished flips a single bag's finished_at field on or off. Bags live
+// inline on the Coffee doc, so this reads, mutates, and writes back inside a
+// transaction to avoid racing a concurrent upsert (which appends bags).
+func (r *FirestoreRepo) SetBagFinished(
+	ctx context.Context,
+	uid, coffeeID, bagID string,
+	finished bool,
+	now time.Time,
+) (Coffee, error) {
+	docRef := r.coffees(uid).Doc(coffeeID)
+	var result Coffee
+	err := r.client.RunTransaction(ctx, func(_ context.Context, tx *firestore.Transaction) error {
+		c, err := readCoffeeForBagUpdate(tx, docRef)
+		if err != nil {
+			return err
+		}
+		if err := applyBagFinished(&c, bagID, finished, now); err != nil {
+			return err
+		}
+		result = c
+		return tx.Set(docRef, c) //nolint:wrapcheck
+	})
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Coffee{}, ErrNotFound
+		}
+		if errors.Is(err, ErrBagNotFound) {
+			return Coffee{}, ErrBagNotFound
+		}
+		return Coffee{}, fmt.Errorf("set bag finished: %w", err)
+	}
+	return result, nil
+}
+
+func readCoffeeForBagUpdate(tx *firestore.Transaction, docRef *firestore.DocumentRef) (Coffee, error) {
+	snap, err := tx.Get(docRef)
+	if status.Code(err) == codes.NotFound {
+		return Coffee{}, ErrNotFound
+	}
+	if err != nil {
+		return Coffee{}, fmt.Errorf("get coffee: %w", err)
+	}
+	var c Coffee
+	if err := snap.DataTo(&c); err != nil {
+		return Coffee{}, fmt.Errorf("decode coffee: %w", err)
+	}
+	return c, nil
+}
+
+func applyBagFinished(c *Coffee, bagID string, finished bool, now time.Time) error {
+	for i := range c.Bags {
+		if c.Bags[i].BagID != bagID {
+			continue
+		}
+		if finished {
+			t := now
+			c.Bags[i].FinishedAt = &t
+		} else {
+			c.Bags[i].FinishedAt = nil
+		}
+		return nil
+	}
+	return ErrBagNotFound
+}
+
 // LookupBySlug checks whether a user already has a coffee for the given
 // canonical key (slug). The hash strategy stays encapsulated here.
 func (r *FirestoreRepo) LookupBySlug(ctx context.Context, uid, canonicalKey string) (CoffeeSummary, bool, error) {
@@ -322,6 +393,32 @@ func summary(coffeeID string, c *Coffee) CoffeeSummary {
 		Rating:       c.Rating,
 		LastSeenAt:   c.LastSeenAt,
 		SessionCount: c.SessionCount,
+		BagCount:     len(c.Bags),
+		OpenBag:      newestOpenBag(c.Bags),
+	}
+}
+
+// newestOpenBag picks the most-recently-opened bag where finished_at is nil.
+// One coffee can carry many bags over time (re-orders); the rail focuses on
+// what the user is actively brewing right now.
+func newestOpenBag(bags []Bag) *BagSummary {
+	var best *Bag
+	for i := range bags {
+		b := &bags[i]
+		if b.FinishedAt != nil {
+			continue
+		}
+		if best == nil || b.OpenedAt.After(best.OpenedAt) {
+			best = b
+		}
+	}
+	if best == nil {
+		return nil
+	}
+	return &BagSummary{
+		BagID:     best.BagID,
+		OpenedAt:  best.OpenedAt,
+		RoastDate: best.RoastDate,
 	}
 }
 
