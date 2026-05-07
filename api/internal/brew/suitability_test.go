@@ -190,6 +190,86 @@ func TestSuitability_DarkPourover_ReasonMentionsExtraction(t *testing.T) {
 	}
 }
 
+func TestSuitability_FilterIntendedEspresso_Suboptimal(t *testing.T) {
+	bean := brew.CanonicalBean{IntendedUse: "filter"}
+	r := brew.ComputeSuitability(&bean, "espresso")
+	assertSuitability(t, r, "suboptimal", brew.RuleFilterEspresso)
+}
+
+func TestSuitability_FilterIntendedAmericano_Suboptimal(t *testing.T) {
+	bean := brew.CanonicalBean{IntendedUse: "filter"}
+	r := brew.ComputeSuitability(&bean, "americano")
+	assertSuitability(t, r, "suboptimal", brew.RuleFilterEspresso)
+}
+
+func TestSuitability_FilterIntendedLatte_Poor(t *testing.T) {
+	bean := brew.CanonicalBean{IntendedUse: "filter"}
+	r := brew.ComputeSuitability(&bean, "latte")
+	assertSuitability(t, r, "poor", brew.RuleFilterMilk)
+}
+
+func TestSuitability_FilterIntendedFlatWhite_Poor(t *testing.T) {
+	bean := brew.CanonicalBean{IntendedUse: "filter"}
+	r := brew.ComputeSuitability(&bean, "flat white")
+	assertSuitability(t, r, "poor", brew.RuleFilterMilk)
+}
+
+func TestSuitability_FilterIntendedCortado_Poor(t *testing.T) {
+	bean := brew.CanonicalBean{IntendedUse: "filter"}
+	r := brew.ComputeSuitability(&bean, "cortado")
+	assertSuitability(t, r, "poor", brew.RuleFilterMilk)
+}
+
+func TestSuitability_FilterIntendedBlack_Suitable(t *testing.T) {
+	// Filter-intended bean as straight pourover is exactly the right pairing —
+	// no rule should fire and the existing washed-light-black rule may still
+	// elevate it to ideal. Either way, not poor or suboptimal.
+	bean := brew.CanonicalBean{IntendedUse: "filter", Process: "washed", RoastLevel: "medium-light"}
+	r := brew.ComputeSuitability(&bean, "black")
+	if r.Level != "suitable" && r.Level != "ideal" {
+		t.Errorf("filter-intended pourover should be suitable or ideal, got %q (rule %q)", r.Level, r.Rule)
+	}
+}
+
+func TestSuitability_EspressoIntendedBlack_Suboptimal(t *testing.T) {
+	bean := brew.CanonicalBean{IntendedUse: "espresso"}
+	r := brew.ComputeSuitability(&bean, "black")
+	assertSuitability(t, r, "suboptimal", brew.RuleEspressoFilter)
+}
+
+func TestSuitability_EspressoIntendedCafeAuLait_Suboptimal(t *testing.T) {
+	bean := brew.CanonicalBean{IntendedUse: "espresso"}
+	r := brew.ComputeSuitability(&bean, "cafe au lait")
+	assertSuitability(t, r, "suboptimal", brew.RuleEspressoFilter)
+}
+
+func TestSuitability_EspressoIntendedEspresso_Suitable(t *testing.T) {
+	bean := brew.CanonicalBean{IntendedUse: "espresso", Process: "washed", RoastLevel: "medium"}
+	r := brew.ComputeSuitability(&bean, "espresso")
+	if r.Level != "suitable" && r.Level != "ideal" {
+		t.Errorf("espresso-intended bean for espresso should be suitable or ideal, got %q", r.Level)
+	}
+}
+
+func TestSuitability_OmniIntendedEspresso_NoIntentRule(t *testing.T) {
+	// Omni-roasted bean used as espresso should not trigger any intent rule.
+	bean := brew.CanonicalBean{IntendedUse: "omni"}
+	r := brew.ComputeSuitability(&bean, "espresso")
+	if r.Rule == brew.RuleFilterEspresso || r.Rule == brew.RuleFilterMilk || r.Rule == brew.RuleEspressoFilter {
+		t.Errorf("omni intent should not trigger an intent rule, got %q", r.Rule)
+	}
+}
+
+func TestSuitability_FilterIntendedEspresso_PreservesPoorOverride(t *testing.T) {
+	// A filter-intended Gesha in a latte should still resolve to poor via
+	// RuleGeshaMilk (varietal rule fires first), not via the new filter rule.
+	// This guards the priority order: the intent rule must not steal precedence
+	// from a more specific poor rule that was already firing.
+	bean := brew.CanonicalBean{IntendedUse: "filter", Varietal: "gesha"}
+	r := brew.ComputeSuitability(&bean, "latte")
+	assertSuitability(t, r, "poor", brew.RuleGeshaMilk)
+}
+
 func TestSuitability_Suitable_HasNonEmptyReason(t *testing.T) {
 	bean := brew.CanonicalBean{Process: "washed", RoastLevel: "medium"}
 	r := brew.ComputeSuitability(&bean, "americano")

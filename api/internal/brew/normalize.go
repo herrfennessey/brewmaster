@@ -11,11 +11,13 @@ import (
 //
 // RoastLevel is intentionally empty when the source has no roast information,
 // so the calculator can apply a medium-light default while suitability rules
-// (which check explicit values) avoid firing for an unknown roast.
+// (which check explicit values) avoid firing for an unknown roast. IntendedUse
+// is similarly empty when the source did not state filter/espresso/omni.
 type CanonicalBean struct {
 	RoastDate     *time.Time
 	Process       string // guaranteed enum value or ""
 	RoastLevel    string // "light" | "medium-light" | "medium" | "dark" | "" (unknown)
+	IntendedUse   string // "filter" | "espresso" | "omni" | "" (unknown)
 	OriginCountry string // lowercase
 	OriginRegion  string // lowercase
 	Varietal      string // canonical lowercase (geisha→gesha, sl-28→sl28, etc.)
@@ -55,6 +57,9 @@ func Normalize(bean *models.ParsedBean) CanonicalBean {
 	}
 	if bean.RoastLevel != nil {
 		cb.RoastLevel = normalizeRoast(*bean.RoastLevel)
+	}
+	if bean.IntendedUse != nil {
+		cb.IntendedUse = normalizeIntendedUse(*bean.IntendedUse)
 	}
 	if bean.RoastDate != nil {
 		if t, err := time.Parse("2006-01-02", strings.TrimSpace(*bean.RoastDate)); err == nil {
@@ -101,6 +106,17 @@ func normalizeProcess(p string) string {
 		return "wet-hulled"
 	}
 	return p
+}
+
+// normalizeIntendedUse trims and lowercases, returning "" for unknown so
+// suitability rules can short-circuit when the source didn't state intent.
+func normalizeIntendedUse(u string) string {
+	switch strings.ToLower(strings.TrimSpace(u)) {
+	case "filter", "espresso", "omni":
+		return strings.ToLower(strings.TrimSpace(u))
+	default:
+		return ""
+	}
 }
 
 // normalizeRoast preserves an empty input as "" (unknown). Source values that

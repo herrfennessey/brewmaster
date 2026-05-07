@@ -9,6 +9,7 @@ export interface ParsedBean {
   roast_level: 'light' | 'medium-light' | 'medium' | 'dark' | null
   roast_date: string | null
   roaster_name: string | null
+  intended_use: 'filter' | 'espresso' | 'omni' | null
   flavor_notes: string[]
   lot_year: number | null
 }

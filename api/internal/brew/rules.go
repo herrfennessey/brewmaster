@@ -3,14 +3,18 @@ package brew
 
 // RulesetVersion identifies the current parameter ruleset for traceability.
 //
-// v2 (current): roast-primary temperature model (light/medium-light/medium/dark
-// bases with altitude + varietal + process as small additive deltas, clamped
-// to [86, 96]°C). Adds varietal density axis, roast-date nudge, and a
+// v3 (current): adds intended_use (filter/espresso/omni) suitability rules so
+// a coffee marketed as filter doesn't get scored "ideal" as espresso. Existing
+// v2 rule semantics are unchanged.
+//
+// v2: roast-primary temperature model (light/medium-light/medium/dark bases
+// with altitude + varietal + process as small additive deltas, clamped to
+// [86, 96]°C). Adds varietal density axis, roast-date nudge, and a
 // medium-light default for unlabeled beans.
 //
 // v1: altitude-primary temperature model with large process/roast deltas; could
 // compound below operating range for dark+wet-hulled+low-altitude inputs.
-const RulesetVersion = "v2"
+const RulesetVersion = "v3"
 
 // RuleID identifies a specific rule applied during computation.
 type RuleID string
@@ -25,6 +29,7 @@ const (
 	RuleAnaerobicMedMilk RuleID = "v2.anaerobic_medium_milk_poor"
 	RuleLightLatte       RuleID = "v2.light_latte_poor"
 	RuleDarkPourover     RuleID = "v2.dark_pourover_poor"
+	RuleFilterMilk       RuleID = "v3.filter_intended_milk_poor"
 )
 
 // Suitability suboptimal rules — apply when no poor rule matched.
@@ -34,6 +39,8 @@ const (
 	RuleSL28MedHighMilk      RuleID = "v2.sl28_medium_high_milk_suboptimal"
 	RuleNaturalAnaeroCortado RuleID = "v2.anaerobic_low_milk_suboptimal"
 	RuleDarkCafeAuLait       RuleID = "v2.dark_cafe_au_lait_suboptimal"
+	RuleFilterEspresso       RuleID = "v3.filter_intended_espresso_suboptimal"
+	RuleEspressoFilter       RuleID = "v3.espresso_intended_pourover_suboptimal"
 )
 
 // Suitability ideal rules — genuinely synergistic, not just absence of problems.
