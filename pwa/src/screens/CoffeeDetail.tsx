@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { getCoffeeAPI, patchCoffeeAPI } from '../services/api'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { deleteCoffeeAPI, getCoffeeAPI, patchCoffeeAPI } from '../services/api'
 import { useAuth } from '../services/auth-context'
 import { formatDate, metaJoin } from '../services/format'
 import type { Coffee } from '../types'
@@ -31,9 +31,11 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
 export default function CoffeeDetail() {
   const { id } = useParams<{ id: string }>()
   const { user, ready } = useAuth()
+  const navigate = useNavigate()
   const [coffee, setCoffee] = useState<Coffee | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [notesDraft, setNotesDraft] = useState('')
 
   const uid = user?.uid
@@ -67,6 +69,20 @@ export default function CoffeeDetail() {
 
   function saveNotes() {
     return patch(notesDraft === '' ? { clear: ['notes'] } : { notes: notesDraft })
+  }
+
+  async function handleDelete() {
+    if (!id) return
+    const ok = window.confirm('Delete this coffee? Bag history and ratings will be removed.')
+    if (!ok) return
+    setDeleting(true)
+    try {
+      await deleteCoffeeAPI(id)
+      navigate('/coffees')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete')
+      setDeleting(false)
+    }
   }
 
   if (!coffee) {
@@ -155,6 +171,17 @@ export default function CoffeeDetail() {
           </p>
         </section>
       )}
+
+      <section className="coffee-section coffee-section--danger">
+        <button
+          type="button"
+          className="coffee-detail__delete"
+          onClick={handleDelete}
+          disabled={deleting}
+        >
+          {deleting ? 'Deleting…' : 'Delete coffee'}
+        </button>
+      </section>
     </div>
   )
 }

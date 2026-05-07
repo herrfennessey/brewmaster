@@ -36,7 +36,6 @@ export default function MyCoffees() {
   if (!ready || coffees === null) {
     return (
       <div className="screen my-coffees-screen">
-        <Link to="/" className="results-back">← Home</Link>
         <h1 className="my-coffees-screen__heading">My coffees</h1>
         {fatalErr
           ? <p className="coffee-section__error">{fatalErr.message}</p>
@@ -47,7 +46,6 @@ export default function MyCoffees() {
 
   return (
     <div className="screen my-coffees-screen">
-      <Link to="/" className="results-back">← Home</Link>
       <h1 className="my-coffees-screen__heading">My coffees</h1>
 
       {isAnonymous && (

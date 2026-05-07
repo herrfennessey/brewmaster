@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, type DragEvent, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   parseBeanAPI, parseImageAPI, parseURLAPI, generateParametersAPI, lookupCoffeeAPI,
 } from '../services/api'
 import { saveBeanProfile, saveBrewParameters } from '../services/storage'
+import MyCoffeesRail from '../components/MyCoffeesRail'
 import type { DrinkType, ExtractionMethod } from '../types'
 import { DRINK_LABELS } from '../types'
 
@@ -190,12 +191,6 @@ export default function Home() {
 
   return (
     <div className="screen home-screen">
-      <div className="logo">
-        <CupIcon className="logo__icon" />
-        <span className="logo__name">Brewmaster</span>
-        <Link to="/coffees" className="logo__action">My coffees</Link>
-      </div>
-
       <p className="home-tagline">Precision brew parameters from your coffee bag.</p>
 
       <form onSubmit={handleSubmit} className="input-card">
@@ -344,6 +339,8 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      <MyCoffeesRail />
     </div>
   )
 }

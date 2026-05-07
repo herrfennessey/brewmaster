@@ -212,6 +212,32 @@ func (h *CoffeesHandler) Patch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, coffee)
 }
 
+// Delete removes a coffee. Returns 204 on success, 404 when the coffee is
+// already gone (or never belonged to this user — same response shape so we
+// don't leak the existence of other users' coffees).
+func (h *CoffeesHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	uid, ok := requireUID(w, r)
+	if !ok {
+		return
+	}
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "missing coffee id")
+		return
+	}
+	err := h.repo.DeleteCoffee(r.Context(), uid, id)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "coffee not found")
+		return
+	}
+	if err != nil {
+		slog.ErrorContext(r.Context(), "delete coffee failed", "error", err, "uid", uid, "id", id)
+		writeError(w, http.StatusInternalServerError, "failed to delete coffee")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 type lookupResponse struct {
 	Coffee *store.CoffeeSummary `json:"coffee"`
 }

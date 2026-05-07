@@ -29,6 +29,7 @@ type Repo interface {
 	ListCoffees(ctx context.Context, uid string) ([]CoffeeSummary, error)
 	GetCoffee(ctx context.Context, uid, coffeeID string) (Coffee, error)
 	PatchCoffee(ctx context.Context, uid, coffeeID string, patch PatchInput, now time.Time) (Coffee, error)
+	DeleteCoffee(ctx context.Context, uid, coffeeID string) error
 	LookupBySlug(ctx context.Context, uid, canonicalKey string) (CoffeeSummary, bool, error)
 }
 
@@ -123,6 +124,23 @@ func (r *FirestoreRepo) ListCoffees(ctx context.Context, uid string) ([]CoffeeSu
 		out = append(out, summary(snap.Ref.ID, &c))
 	}
 	return out, nil
+}
+
+// DeleteCoffee removes one coffee document. Firestore's Delete is idempotent
+// (no-op when the doc is already gone), so we Get first to surface ErrNotFound
+// — callers want to distinguish "deleted now" from "wasn't there".
+func (r *FirestoreRepo) DeleteCoffee(ctx context.Context, uid, coffeeID string) error {
+	docRef := r.coffees(uid).Doc(coffeeID)
+	if _, err := docRef.Get(ctx); err != nil {
+		if status.Code(err) == codes.NotFound {
+			return ErrNotFound
+		}
+		return fmt.Errorf("get coffee: %w", err)
+	}
+	if _, err := docRef.Delete(ctx); err != nil {
+		return fmt.Errorf("delete coffee: %w", err)
+	}
+	return nil
 }
 
 // GetCoffee fetches one coffee by its hash id.
