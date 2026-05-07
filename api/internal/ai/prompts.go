@@ -6,8 +6,9 @@ const ParseBeanPrompt = `You are a specialty coffee expert. Extract structured d
 Rules:
 - Use null for any field not mentioned or clearly inferrable from the text
 - flavor_notes should be an empty array if none are mentioned
-- altitude_confidence: "exact" if a single number given, "range" if a range, "estimated" if inferred from region
+- altitude: when the source gives a single number, set altitude_m to it and altitude_confidence to "exact"; when it gives a range (e.g. "1650-1950m" or "1.650-1.950 masl") set altitude_m to the midpoint and altitude_confidence to "range"; when only the region is known, leave altitude_m best-effort and use "estimated"
 - roast_date must be ISO8601 format (YYYY-MM-DD) or null
+- intended_use captures how the roaster has prepared the coffee. Set to "filter" when the page, title, or product name explicitly indicates filter / pourover / drip / brewed (e.g. "Burundi Gakenke filter", "filter coffee", "pour-over selection"). Set to "espresso" for explicit espresso roasts ("espresso blend", "espresso roast", "for espresso"). Set to "omni" only when the roaster explicitly says omni-roasted or "for both filter and espresso". Use null when the source doesn't say.
 - Do not invent data not present in the text
 - confidence.level reflects how complete and unambiguous the source text was`
 
@@ -26,7 +27,7 @@ var ParseBeanTool = Tool{
 				"required": []string{
 					"producer", "origin_country", "origin_region", "altitude_m",
 					"altitude_confidence", "varietal", "process", "roast_level",
-					"roast_date", "roaster_name", "flavor_notes", "lot_year",
+					"roast_date", "roaster_name", "intended_use", "flavor_notes", "lot_year",
 				},
 				"properties": map[string]any{
 					"producer":            map[string]any{"type": []string{"string", "null"}},
@@ -39,6 +40,7 @@ var ParseBeanTool = Tool{
 					"roast_level":         map[string]any{"type": []string{"string", "null"}, "enum": []any{"light", "medium-light", "medium", "dark", nil}},
 					"roast_date":          map[string]any{"type": []string{"string", "null"}},
 					"roaster_name":        map[string]any{"type": []string{"string", "null"}},
+					"intended_use":        map[string]any{"type": []string{"string", "null"}, "enum": []any{"filter", "espresso", "omni", nil}},
 					"flavor_notes":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 					"lot_year":            map[string]any{"type": []string{"integer", "null"}},
 				},

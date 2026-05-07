@@ -15,6 +15,7 @@ type ParsedBean struct {
 	RoastLevel         *string  `json:"roast_level"`
 	RoastDate          *string  `json:"roast_date"`
 	RoasterName        *string  `json:"roaster_name"`
+	IntendedUse        *string  `json:"intended_use"`
 	LotYear            *int     `json:"lot_year"`
 	FlavorNotes        []string `json:"flavor_notes"`
 }

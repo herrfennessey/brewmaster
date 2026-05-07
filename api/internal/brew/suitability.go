@@ -20,12 +20,15 @@ var suitabilityReasons = map[RuleID]string{
 	RuleAnaerobicMedMilk: "Anaerobic fermentation aromatics are lost in medium-milk espresso drinks.",
 	RuleLightLatte:       "Light roast delicacy disappears completely in high milk volume.",
 	RuleDarkPourover:     "Dark roast is already very soluble; pourover's long contact time over-extracts it into bitterness with no pressure-driven cutoff.",
+	RuleFilterMilk:       "This coffee is sold as a filter roast — light enough that milk drinks taste sour and underdeveloped, since the bean was never developed for pressure extraction.",
 	// Suboptimal
 	RuleLightMedMilk:         "Light roast character is significantly diminished with medium milk volume.",
 	RuleEastAfricanLatte:     "Ethiopian and Kenyan brightness and acidity — the whole point — are masked by milk.",
 	RuleSL28MedHighMilk:      "SL28's signature sharp acidity does not integrate with milk; can taste sour.",
 	RuleNaturalAnaeroCortado: "Anaerobic fermentation character loses nuance even in low-milk drinks compared to straight espresso.",
 	RuleDarkCafeAuLait:       "Dark roast in cafe au lait is drinkable but heavy and flat.",
+	RuleFilterEspresso:       "This coffee is sold as a filter roast — workable as espresso but typically sour and lighter-bodied than the drink wants, since it's developed for percolation rather than pressure.",
+	RuleEspressoFilter:       "This coffee is sold as an espresso roast — drinkable in pourover but often muted or roasty, since it's developed for pressure extraction rather than percolation.",
 	// Ideal
 	RuleMilkOriginDarkRoast:    "Chocolate and caramel body of this origin cuts through milk cleanly for a classic milk espresso.",
 	RuleHoneyMediumMilk:        "Honey process body and sweetness synergise with milk in an ideal combination.",
@@ -75,31 +78,69 @@ func buildSuitabilityResult(level string, rule RuleID) SuitabilityResult {
 }
 
 func checkPoorRules(bean *CanonicalBean, drink string) (RuleID, bool) {
+	if rule, ok := checkVarietalPoor(bean, drink); ok {
+		return rule, ok
+	}
+	if rule, ok := checkProcessPoor(bean, drink); ok {
+		return rule, ok
+	}
+	return checkRoastIntentPoor(bean, drink)
+}
+
+func checkVarietalPoor(bean *CanonicalBean, drink string) (RuleID, bool) {
 	if bean.Varietal == "gesha" && isAnyMilk(drink) {
 		return RuleGeshaMilk, true
 	}
 	if bean.Varietal == "eugenioides" && (isMediumMilk(drink) || isHighMilk(drink)) {
 		return RuleEugenioidsMilk, true
 	}
+	return "", false
+}
+
+func checkProcessPoor(bean *CanonicalBean, drink string) (RuleID, bool) {
 	if isAnaerobicLike(bean) && isHighMilk(drink) {
 		return RuleAnaerobicLatte, true
 	}
 	if isAnaerobicLike(bean) && isMediumMilk(drink) {
 		return RuleAnaerobicMedMilk, true
 	}
+	return "", false
+}
+
+func checkRoastIntentPoor(bean *CanonicalBean, drink string) (RuleID, bool) {
 	if bean.RoastLevel == "light" && isHighMilk(drink) {
 		return RuleLightLatte, true
 	}
 	if bean.RoastLevel == "dark" && drink == "black" {
 		return RuleDarkPourover, true
 	}
+	if bean.IntendedUse == "filter" && isAnyMilk(drink) {
+		return RuleFilterMilk, true
+	}
 	return "", false
 }
 
 func checkSuboptimalRules(bean *CanonicalBean, drink string) (RuleID, bool) {
+	if rule, ok := checkRoastSuboptimal(bean, drink); ok {
+		return rule, ok
+	}
+	if rule, ok := checkOriginVarietalSuboptimal(bean, drink); ok {
+		return rule, ok
+	}
+	return checkIntentSuboptimal(bean, drink)
+}
+
+func checkRoastSuboptimal(bean *CanonicalBean, drink string) (RuleID, bool) {
 	if bean.RoastLevel == "light" && isMediumMilk(drink) {
 		return RuleLightMedMilk, true
 	}
+	if bean.RoastLevel == "dark" && drink == "cafe au lait" {
+		return RuleDarkCafeAuLait, true
+	}
+	return "", false
+}
+
+func checkOriginVarietalSuboptimal(bean *CanonicalBean, drink string) (RuleID, bool) {
 	// East African brightness only conflicts with milk while the roast is still
 	// light enough to preserve it; dark-roasted Ethiopian Sidamo in a latte is a
 	// classic, defensible pairing.
@@ -116,8 +157,19 @@ func checkSuboptimalRules(bean *CanonicalBean, drink string) (RuleID, bool) {
 	if isAnaerobicLike(bean) && isLowMilk(drink) {
 		return RuleNaturalAnaeroCortado, true
 	}
-	if bean.RoastLevel == "dark" && drink == "cafe au lait" {
-		return RuleDarkCafeAuLait, true
+	return "", false
+}
+
+// checkIntentSuboptimal only fires when no roast/origin/process rule already
+// had something to say. Filter roasts pulled as straight espresso (or
+// americano) tend to come out sour; espresso roasts run through pourover or
+// drip filter run flat. "Omni" intentionally never triggers.
+func checkIntentSuboptimal(bean *CanonicalBean, drink string) (RuleID, bool) {
+	if bean.IntendedUse == "filter" && (drink == "espresso" || drink == "americano") {
+		return RuleFilterEspresso, true
+	}
+	if bean.IntendedUse == "espresso" && (drink == "black" || drink == "cafe au lait") {
+		return RuleEspressoFilter, true
 	}
 	return "", false
 }

@@ -145,6 +145,32 @@ func TestNormalize_AltitudeKnown(t *testing.T) {
 	}
 }
 
+func TestNormalize_IntendedUse(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"filter", "filter"},
+		{"FILTER", "filter"},
+		{"  Espresso  ", "espresso"},
+		{"omni", "omni"},
+		{"pour-over", ""}, // not in the enum — drop it
+		{"", ""},
+	}
+	for _, tt := range cases {
+		bean := models.ParsedBean{IntendedUse: strPtr(tt.in)}
+		cb := brew.Normalize(&bean)
+		if cb.IntendedUse != tt.want {
+			t.Errorf("input %q: want %q, got %q", tt.in, tt.want, cb.IntendedUse)
+		}
+	}
+}
+
+func TestNormalize_IntendedUseNil_PreservesEmpty(t *testing.T) {
+	bean := models.ParsedBean{}
+	cb := brew.Normalize(&bean)
+	if cb.IntendedUse != "" {
+		t.Errorf("expected empty IntendedUse for nil source, got %q", cb.IntendedUse)
+	}
+}
+
 func TestNormalize_AltitudeUnknown(t *testing.T) {
 	bean := models.ParsedBean{}
 	cb := brew.Normalize(&bean)

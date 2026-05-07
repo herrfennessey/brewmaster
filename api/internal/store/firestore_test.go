@@ -103,3 +103,23 @@ func TestMergeParsedBean_LotYearAndConfidence(t *testing.T) {
 		t.Error("altitude_confidence should fill from incoming when existing is nil")
 	}
 }
+
+func TestMergeParsedBean_IntendedUseFillsAndPreserves(t *testing.T) {
+	// Existing profile lacks intent → fills from incoming.
+	merged := mergeParsedBean(
+		&models.ParsedBean{},
+		&models.ParsedBean{IntendedUse: sptr("filter")},
+	)
+	if merged.IntendedUse == nil || *merged.IntendedUse != "filter" {
+		t.Errorf("expected intended_use to fill from incoming, got %v", merged.IntendedUse)
+	}
+
+	// Existing profile has intent → preserved over a thinner re-parse.
+	merged = mergeParsedBean(
+		&models.ParsedBean{IntendedUse: sptr("filter")},
+		&models.ParsedBean{},
+	)
+	if merged.IntendedUse == nil || *merged.IntendedUse != "filter" {
+		t.Errorf("expected intended_use preserved, got %v", merged.IntendedUse)
+	}
+}
