@@ -50,7 +50,7 @@ Copy `.envrc.example` to `.envrc` and source it (or use direnv). Required vars: 
   - `calculator.go` — `ComputeParams(bean, method, drink, now) → ComputedParams`. Roast-primary temperature model with altitude / varietal / process / freshness as small additive deltas, clamped to [86°C, 96°C]
   - `suitability.go` — `ComputeSuitability(bean, drink) → SuitabilityResult` (poor → suboptimal → ideal → suitable rule cascade)
   - `confidence.go` — weighted bean-profile completeness score
-  - `rules.go` — `RuleID` constants and `RulesetVersion` (currently `v2`); bump the version whenever you change rule semantics so telemetry stays interpretable
+  - `rules.go` — `RuleID` constants and `RulesetVersion` (pinned at `v1` until GA; do not bump pre-launch — there are no users yet)
 - `internal/models/types.go` — shared data types (Go structs match TypeScript interfaces 1:1)
 
 **AI provider**: `OpenAIProvider` in `internal/ai/openai.go`. Uses `github.com/openai/openai-go/v3`. Model from `AI_MODEL` env — never hardcode or change model names. Do not add AnthropicProvider or a provider factory.
@@ -82,7 +82,7 @@ GCP project: `the-coffee-brewmaster`. Cloud Run SA: `brewmaster-api@the-coffee-b
 - **Static embedding** — `api/static/` is populated by the PWA build; never commit generated files there.
 - **US spelling** — misspell linter uses locale:US. Use `flavor` not `flavour` everywhere.
 - **Model selection** — never modify `AI_MODEL` env var references or model name constants; the user manages model selection.
-- **Deterministic brew engine** — `internal/brew/` must stay deterministic. The LLM may annotate but must never produce or override numeric parameters, suitability, or confidence. When changing rule semantics, bump `RulesetVersion` in `internal/brew/rules.go`.
+- **Deterministic brew engine** — `internal/brew/` must stay deterministic. The LLM may annotate but must never produce or override numeric parameters, suitability, or confidence. `RulesetVersion` is pinned at `v1` until GA — do not bump it pre-launch.
 
 ## Implementation Status
 
