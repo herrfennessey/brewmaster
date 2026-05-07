@@ -323,6 +323,9 @@ func mergeProfiles(img, web *parsedAIResponse) parsedAIResponse {
 	if p.RoasterName == nil {
 		p.RoasterName = w.RoasterName
 	}
+	if p.IntendedUse == nil {
+		p.IntendedUse = w.IntendedUse
+	}
 	if p.LotYear == nil {
 		p.LotYear = w.LotYear
 	}

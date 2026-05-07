@@ -268,6 +268,7 @@ func mergeParsedBean(existing, incoming *models.ParsedBean) models.ParsedBean {
 	merged.RoastLevel = pickStr(existing.RoastLevel, incoming.RoastLevel)
 	merged.RoastDate = pickStr(existing.RoastDate, incoming.RoastDate)
 	merged.RoasterName = pickStr(existing.RoasterName, incoming.RoasterName)
+	merged.IntendedUse = pickStr(existing.IntendedUse, incoming.IntendedUse)
 	merged.LotYear = pickInt(existing.LotYear, incoming.LotYear)
 	if len(existing.FlavorNotes) == 0 && len(incoming.FlavorNotes) > 0 {
 		merged.FlavorNotes = incoming.FlavorNotes

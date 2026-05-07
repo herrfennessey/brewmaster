@@ -88,6 +88,19 @@ export default function BeanReview() {
           </div>
         ))}
         <div className="review-field">
+          <label htmlFor="intended_use">Intended use</label>
+          <select
+            id="intended_use"
+            value={parsed.intended_use ?? ''}
+            onChange={e => updateField('intended_use', e.target.value)}
+          >
+            <option value="">unknown</option>
+            <option value="filter">Filter</option>
+            <option value="espresso">Espresso</option>
+            <option value="omni">Omni</option>
+          </select>
+        </div>
+        <div className="review-field">
           <label htmlFor="flavor_notes">Flavor notes</label>
           <input
             id="flavor_notes"
