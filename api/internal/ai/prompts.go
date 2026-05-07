@@ -6,8 +6,7 @@ const ParseBeanPrompt = `You are a specialty coffee expert. Extract structured d
 Rules:
 - Use null for any field not mentioned or clearly inferrable from the text
 - flavor_notes should be an empty array if none are mentioned
-- altitude_confidence: "exact" if a single number given, "range" if a range, "estimated" if inferred from region
-- For altitude ranges (e.g. "1650-1950m" or "1.650-1.950 masl"), set altitude_m to the midpoint and altitude_confidence to "range"
+- altitude: when the source gives a single number, set altitude_m to it and altitude_confidence to "exact"; when it gives a range (e.g. "1650-1950m" or "1.650-1.950 masl") set altitude_m to the midpoint and altitude_confidence to "range"; when only the region is known, leave altitude_m best-effort and use "estimated"
 - roast_date must be ISO8601 format (YYYY-MM-DD) or null
 - intended_use captures how the roaster has prepared the coffee. Set to "filter" when the page, title, or product name explicitly indicates filter / pourover / drip / brewed (e.g. "Burundi Gakenke filter", "filter coffee", "pour-over selection"). Set to "espresso" for explicit espresso roasts ("espresso blend", "espresso roast", "for espresso"). Set to "omni" only when the roaster explicitly says omni-roasted or "for both filter and espresso". Use null when the source doesn't say.
 - Do not invent data not present in the text

@@ -12,7 +12,8 @@ import (
 // RoastLevel is intentionally empty when the source has no roast information,
 // so the calculator can apply a medium-light default while suitability rules
 // (which check explicit values) avoid firing for an unknown roast. IntendedUse
-// is similarly empty when the source did not state filter/espresso/omni.
+// is similarly empty when the source did not state filter/espresso/omni; the
+// "omni" value is preserved when stated but no current rule consumes it.
 type CanonicalBean struct {
 	RoastDate     *time.Time
 	Process       string // guaranteed enum value or ""
@@ -111,12 +112,12 @@ func normalizeProcess(p string) string {
 // normalizeIntendedUse trims and lowercases, returning "" for unknown so
 // suitability rules can short-circuit when the source didn't state intent.
 func normalizeIntendedUse(u string) string {
-	switch strings.ToLower(strings.TrimSpace(u)) {
+	u = strings.ToLower(strings.TrimSpace(u))
+	switch u {
 	case "filter", "espresso", "omni":
-		return strings.ToLower(strings.TrimSpace(u))
-	default:
-		return ""
+		return u
 	}
+	return ""
 }
 
 // normalizeRoast preserves an empty input as "" (unknown). Source values that
