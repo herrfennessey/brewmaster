@@ -36,7 +36,6 @@ export default function MyCoffees() {
   if (!ready || coffees === null) {
     return (
       <div className="screen my-coffees-screen">
-        <Link to="/" className="results-back">← Home</Link>
         <h1 className="my-coffees-screen__heading">My coffees</h1>
         {fatalErr
           ? <p className="coffee-section__error">{fatalErr.message}</p>
@@ -47,7 +46,6 @@ export default function MyCoffees() {
 
   return (
     <div className="screen my-coffees-screen">
-      <Link to="/" className="results-back">← Home</Link>
       <h1 className="my-coffees-screen__heading">My coffees</h1>
 
       {isAnonymous && (
@@ -61,7 +59,9 @@ export default function MyCoffees() {
 
       {coffees.length === 0 ? (
         <p className="coffee-section__muted">
-          No saved coffees yet. Scan a bag and tap “Save to my coffees” after dialling in.
+          No coffees saved yet. Scan a bag, dial it in, and tap “Add this bag” —
+          re-orders of the same coffee then stack under one entry so the
+          learnings carry over.
         </p>
       ) : (
         <ul className="my-coffees-list">

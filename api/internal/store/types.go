@@ -45,16 +45,30 @@ type BeanCard struct {
 	Varietal      string `json:"varietal"`
 }
 
+// BagSummary is the trimmed bag projection returned on a CoffeeSummary so
+// the home rail can show the currently-open bag's roast/opened dates without
+// loading every full Coffee doc.
+type BagSummary struct {
+	OpenedAt  time.Time `json:"opened_at"`
+	RoastDate *string   `json:"roast_date,omitempty"`
+	BagID     string    `json:"bag_id"`
+}
+
 // CoffeeSummary is the trimmed shape returned by list endpoints. coffee_id
 // is the short hashed Firestore doc id used in URLs. The full canonical key
 // (long roaster|bean|process slug) lives only inside the Coffee doc itself —
 // list responses don't need to ship it.
+//
+// OpenBag is the most-recently-opened bag without a finished_at; nil when
+// every bag is finished or no bags exist.
 type CoffeeSummary struct {
-	LastSeenAt   time.Time `json:"last_seen_at"`
-	Rating       *int      `json:"rating,omitempty"`
-	CoffeeID     string    `json:"coffee_id"`
-	BeanCard     BeanCard  `json:"bean_card"`
-	SessionCount int       `json:"session_count"`
+	LastSeenAt   time.Time   `json:"last_seen_at"`
+	Rating       *int        `json:"rating,omitempty"`
+	OpenBag      *BagSummary `json:"open_bag,omitempty"`
+	CoffeeID     string      `json:"coffee_id"`
+	BeanCard     BeanCard    `json:"bean_card"`
+	BagCount     int         `json:"bag_count"`
+	SessionCount int         `json:"session_count"`
 }
 
 // UpsertInput is the payload accepted by the upsert handler. RoastDate may be

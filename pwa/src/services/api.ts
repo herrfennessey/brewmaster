@@ -135,6 +135,25 @@ export function patchCoffeeAPI(
   return patchJSON<Coffee>(`/api/coffees/${encodeURIComponent(id)}`, patch)
 }
 
+export async function deleteCoffeeAPI(id: string): Promise<void> {
+  const headers = await authedHeaders()
+  const res = await fetch(`/api/coffees/${encodeURIComponent(id)}`, { method: 'DELETE', headers })
+  if (res.status === 401) await onAuthFailure()
+  if (!res.ok && res.status !== 204) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error((err as { error?: string }).error ?? res.statusText)
+  }
+}
+
+export function setBagFinishedAPI(coffeeID: string, bagID: string, finished: boolean): Promise<Coffee> {
+  const action = finished ? 'finish' : 'reopen'
+  return postJSON<Coffee>(
+    `/api/coffees/${encodeURIComponent(coffeeID)}/bags/${encodeURIComponent(bagID)}/${action}`,
+    {},
+    true,
+  )
+}
+
 export function lookupCoffeeAPI(canonicalKey: string): Promise<{ coffee: CoffeeSummary | null }> {
   return getJSON<{ coffee: CoffeeSummary | null }>(
     `/api/coffees/lookup?key=${encodeURIComponent(canonicalKey)}`,

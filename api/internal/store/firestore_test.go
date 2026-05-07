@@ -2,13 +2,15 @@ package store
 
 import (
 	"testing"
+	"time"
 
 	"github.com/herrfennessey/brewmaster/api/internal/models"
 )
 
-func sptr(s string) *string   { return &s }
-func iptr(i int) *int         { return &i }
-func fptr(f float64) *float64 { return &f }
+func sptr(s string) *string       { return &s }
+func iptr(i int) *int             { return &i }
+func fptr(f float64) *float64     { return &f }
+func tptr(t time.Time) *time.Time { return &t }
 
 func TestMergeBeanProfile_DoesNotClobberRicherExisting(t *testing.T) {
 	existing := models.BeanProfile{
@@ -121,5 +123,64 @@ func TestMergeParsedBean_IntendedUseFillsAndPreserves(t *testing.T) {
 	)
 	if merged.IntendedUse == nil || *merged.IntendedUse != "filter" {
 		t.Errorf("expected intended_use preserved, got %v", merged.IntendedUse)
+	}
+}
+
+func TestNewestOpenBag_NilWhenNone(t *testing.T) {
+	t1 := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	t2 := time.Date(2026, 5, 5, 0, 0, 0, 0, time.UTC)
+	if got := newestOpenBag(nil); got != nil {
+		t.Errorf("nil bags: expected nil summary, got %+v", got)
+	}
+	bags := []Bag{
+		{BagID: "a", OpenedAt: t1, FinishedAt: tptr(t2)},
+	}
+	if got := newestOpenBag(bags); got != nil {
+		t.Errorf("all-finished: expected nil, got %+v", got)
+	}
+}
+
+func TestNewestOpenBag_PicksMostRecentlyOpened(t *testing.T) {
+	t1 := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	t2 := time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)
+	t3 := time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC)
+	bags := []Bag{
+		{BagID: "old-finished", OpenedAt: t1, FinishedAt: tptr(t2)},
+		{BagID: "open-mid", OpenedAt: t2},
+		{BagID: "open-new", OpenedAt: t3},
+	}
+	got := newestOpenBag(bags)
+	if got == nil {
+		t.Fatal("expected an open bag")
+	}
+	if got.BagID != "open-new" {
+		t.Errorf("expected open-new, got %s", got.BagID)
+	}
+}
+
+func TestApplyBagFinished_FlipsAndUnflips(t *testing.T) {
+	now := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+	c := Coffee{Bags: []Bag{
+		{BagID: "a", OpenedAt: now.Add(-72 * time.Hour)},
+	}}
+	if err := applyBagFinished(&c, "a", true, now); err != nil {
+		t.Fatalf("finish failed: %v", err)
+	}
+	if c.Bags[0].FinishedAt == nil || !c.Bags[0].FinishedAt.Equal(now) {
+		t.Errorf("expected FinishedAt=%v, got %v", now, c.Bags[0].FinishedAt)
+	}
+	if err := applyBagFinished(&c, "a", false, now); err != nil {
+		t.Fatalf("reopen failed: %v", err)
+	}
+	if c.Bags[0].FinishedAt != nil {
+		t.Errorf("expected FinishedAt nil after reopen, got %v", c.Bags[0].FinishedAt)
+	}
+}
+
+func TestApplyBagFinished_UnknownBag(t *testing.T) {
+	c := Coffee{Bags: []Bag{{BagID: "a"}}}
+	err := applyBagFinished(&c, "missing", true, time.Now())
+	if err == nil || err.Error() != ErrBagNotFound.Error() {
+		t.Errorf("expected ErrBagNotFound, got %v", err)
 	}
 }

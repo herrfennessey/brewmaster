@@ -40,6 +40,9 @@ func New(provider ai.Provider, repo store.Repo, verifier auth.Verifier, tracerPr
 		mux.Handle("GET /api/coffees/lookup", requireAuth(http.HandlerFunc(coffees.Lookup)))
 		mux.Handle("GET /api/coffees/{id}", requireAuth(http.HandlerFunc(coffees.Get)))
 		mux.Handle("PATCH /api/coffees/{id}", requireAuth(http.HandlerFunc(coffees.Patch)))
+		mux.Handle("DELETE /api/coffees/{id}", requireAuth(http.HandlerFunc(coffees.Delete)))
+		mux.Handle("POST /api/coffees/{id}/bags/{bagId}/finish", requireAuth(coffees.SetBagFinished(true)))
+		mux.Handle("POST /api/coffees/{id}/bags/{bagId}/reopen", requireAuth(coffees.SetBagFinished(false)))
 	}
 
 	// Serve the React PWA from ./static if it has been built.
